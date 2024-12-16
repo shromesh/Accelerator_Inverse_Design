@@ -158,14 +158,14 @@ for min_G_Emax = (0:1)
         Ox = -1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEY;
         Oy =  1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEX;
         
-        % create the adjoint vector corresponding to eta (again, see paper)
+        % create the adjoint vector corresponding to eta (adjoint方程式の方の電流ソース。J_aj)
         eta_aj = [eta_vec; zeros(Nx*Ny,1)];
         
-        % if you are evaluating E_max in the material, compute |E| there,
+        % if you are evaluating E_max in the material, compute |E| there, ここから先は、目的変数2の場合の処理。
         % otherwise, compute |E| in the full optimization region.
-        if (in_material)
+        if (in_material) % The ’design region’ is defined as the total region outside of the particle gap where the permittivity is updated. The ’material region’ is defined as any region where the permittivity is equal to εm.
             E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
-        else
+        else % default: in_material = false
             E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
         end
         
@@ -174,10 +174,10 @@ for min_G_Emax = (0:1)
         x_abs = E_abs(:);
         alpha_vec = exp(x_abs*a);
         alpha_T_1 = sum(alpha_vec);
-        Sa = sum(alpha_vec.*x_abs)/alpha_T_1;
+        Sa = sum(alpha_vec.*x_abs)/alpha_T_1; % このへんの変数はこの辺付近でしか使われないけど、Saだけは後で結果保存するときに使われる
         
-        X_vec = conj(Ex(:))./x_abs;
-        Y_vec = conj(Ey(:))./x_abs;
+        X_vec = conj(Ex(:))./x_abs; % こいつら後で使われない
+        Y_vec = conj(Ey(:))./x_abs; % こいつら後で使われない
         
         
         x = [Ex(:); Ey(:)];
@@ -197,9 +197,9 @@ for min_G_Emax = (0:1)
         b_aj2 = -eta_aj/Sa;
         
         % construct final adjoint source
-        if (min_G_Emax)
+        if (min_G_Emax) % 加速係数 G/E_max の最大化の場合。smooth-maxを使う
             b_aj = b_aj1 + b_aj2;
-        else
+        else % G の最大化の場合。単純に eta_aj を使う。式(25)
             b_aj = -eta_aj;
         end
         b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
@@ -216,7 +216,7 @@ for min_G_Emax = (0:1)
         Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
         Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
         
-        % compute sensitivity information
+        % 勾配。AVMとかいう変数名だが、dG/dε のこと。
         AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
         
         % record relevant variables in the arrays
@@ -227,7 +227,7 @@ for min_G_Emax = (0:1)
         G_by_Sa(j) = G/Sa;
         
         % update permittivity
-        ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
+        ER = ER + alpha*AVM + alpha*gamma*AVM_prev; % momentum 項がついてる　式(27)
         
         % update the previous sensitivity map
         AVM_prev = AVM;
