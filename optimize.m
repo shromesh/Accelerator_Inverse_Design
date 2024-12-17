@@ -9,7 +9,7 @@ display_plots = true;                       % plotting during the run?
 
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
-a = 1;                                     % smooth-max weight factor (see paper)
+a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
 N = 500;                                   % number of iterations
 
@@ -260,9 +260,9 @@ for min_G_Emax = (0:1)
             
             subplot(2,2,2);
             colorbar()
-            plot(Gs(1:j),'k');
+            plot(Gs(1:j)*gap_nm,'k');
             xlabel('iteration number')
-            ylabel('gradient (E_0)')
+            ylabel('power (E_0*Gap)')
             title('acceleration gradient at \phi = 0')            
             set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
             set(gca,'FontSize',22,'fontWeight','normal')
