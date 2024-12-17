@@ -260,7 +260,7 @@ for min_G_Emax = (0:1)
             
             subplot(2,2,2);
             colorbar()
-            plot(Gs(1:j),'k');
+            plot(Gs(1:j),'k'); % 'k'はグラフの線の色を黒にするという意味。
             xlabel('iteration number')
             ylabel('gradient (E_0)')
             title('acceleration gradient at \phi = 0')
