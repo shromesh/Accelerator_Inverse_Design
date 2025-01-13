@@ -17,8 +17,8 @@ in_material = false;                        % evaluate E_max in material? or in 
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 50;                         % number of grid points in a free space wavelength
-% gap_nm_values = 200:10:1300;                % gap size in nm variations with step of 10
-gap_nm_values = 200:100:1300;
+gap_nm_values = 200:10:1300;                % gap size in nm variations with step of 10
+% gap_nm_values = 200:100:1300;
 % gap_nm_values = [800];
 L = 1.0;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
