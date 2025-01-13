@@ -353,6 +353,17 @@ for min_G_Emax = (0:1)
     % --- 2値化後の最終加速勾配を表示 ---
     fprintf('\nFinal Acceleration Gradient after Binarization: %f\n', G);
     
+    % display and save final structure
+    finalFig = figure('Name','Final Structure','Visible','on');
+    imagesc(real(ER), [1, eps]);      % 2値化したので [1, eps] の範囲
+    colormap(flipud(gray));
+    axis equal tight;
+    title('Final Binarized Structure');
+    colorbar();
+    
+    % タイムスタンプ入りの画像ファイル名 (PNG 等)
+    figName = sprintf('final_structure_%s.png', timestamp);
+    saveas(finalFig, figName);        % 画像保存（形式は自由に選択可能）
     
     % get the maximum fields in material and optimization region
     E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
