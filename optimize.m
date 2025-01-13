@@ -17,7 +17,7 @@ in_material = false;                        % evaluate E_max in material? or in 
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 50;                         % number of grid points in a free space wavelength
-gap_nm       = 400;                         % gap size in nm
+gap_nm       = 700;                         % gap size in nm
 L = 1.0;                                      % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
@@ -238,6 +238,7 @@ for min_G_Emax = 0
         
         % record best permittivity if applicable
         if (G > G_best)
+            G_best = G;
             ER_best = ER;
         end
         
