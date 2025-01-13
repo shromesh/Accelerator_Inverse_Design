@@ -41,6 +41,7 @@ dlx = lambda0/grids_in_lam;                 % grid size along electron trajector
 dly  = dlx;                                 % spacing in the perpendicular direction
 
 G_best_values = [];                         % Array to store G_best for each gap size
+G_best_times_gap_values = [];               % Array to store G_best * gap for each gap size
 
 for gap_nm = gap_nm_values
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -355,6 +356,7 @@ for gap_nm = gap_nm_values
         
         % store G_best value for this gap size
         G_best_values = [G_best_values; G_best];
+        G_best_times_gap_values = [G_best_times_gap_values; G_best * gap_nm];
         
         % display and save final structure
         % finalFig = figure('Name','Final Structure','Visible','on');
@@ -408,4 +410,13 @@ ylabel('G\_best');
 title('G\_best for each gap size');
 grid on;
 saveas(gcf, sprintf('result/G_best_vs_gap_size_%s.png', timestamp));
+
+% Plot G_best * gap for each gap size and save the figure
+figure;
+plot(gap_nm_values, G_best_times_gap_values, '-o');
+xlabel('Gap size (nm)');
+ylabel('Power = G\_best * Gap');
+title('Power = G\_best * Gap for each gap size');
+grid on;
+saveas(gcf, sprintf('result/G_best_times_gap_vs_gap_size_%s.png', timestamp));
 
