@@ -374,7 +374,7 @@ for min_G_Emax = 0
     % fprintf(fileID, 'G2: %f\n', G2);
     % fprintf(fileID, 'g1: %f + %fi\n', real(g1), imag(g1));
     % fprintf(fileID, 'g2: %f + %fi\n', real(g2), imag(g2));
-    fprintf(fileID, 'Gradient for ER_best: %f\n', G_best);
+    fprintf(fileID, 'G_best: %f\n', G_best);
     fprintf(fileID, 'G1_best: %f\n', G1_best);
     fprintf(fileID, 'G2_best: %f\n', G2_best);
     fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
