@@ -11,7 +11,7 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 200;                                   % number of iterations
+N = 3000;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -33,7 +33,7 @@ eps = 3.4363^2;     % Si 2um
 
 nmax = sqrt(eps);    % refractive index of material region
 
-gamma = 1*0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
+gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
@@ -151,8 +151,8 @@ for min_G_Emax = 0
         G1 = real(g1);
         g2 = sum(sum(eta2.*Ex));
         G2 = real(g2);
-        g = g1 + g2
-        G = real(g)
+        g = g1 + g2;
+        G = real(g);
         
         % get phase
         phis(j) = angle(g);
@@ -252,6 +252,7 @@ for min_G_Emax = 0
         ER(ER > eps) = eps;
         
         % record best permittivity if applicable
+        % this line does nothing
         if (G > G_best)
             ER_best = ER;
         end
@@ -312,10 +313,9 @@ for min_G_Emax = 0
     %% POST PROCESSING STUFF
     
     % create final field display
-    ND = 5;
     field_disp = [];
     ER_disp = [];
-    for i = (1:ND)
+    for i = (1:5)
         field_disp = [field_disp;Ex];
         ER_disp = [ER_disp;  (ER-ones(Nx,Ny))*10000];
     end
@@ -341,7 +341,7 @@ for min_G_Emax = 0
     
     % compute the gradient
     g = sum(sum(eta1.*Ex)) + sum(sum(eta2.*Ex));
-    G = abs(g);
+    G = abs(g); % why abs?
     
     % save
     timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
@@ -357,7 +357,7 @@ for min_G_Emax = 0
     % display and save final structure
     finalFig = figure('Name','Final Structure','Visible','on');
     
-    % 繰り返し連結用の変数を初期化
+    % binary distributionにした後のERで，繰り返し連結用の変数を初期化
     disp_final = [];
     for k = 1:5
         % ER を縦方向に 5 回連結
@@ -399,11 +399,3 @@ for min_G_Emax = 0
         n_mat_p = G_p/E_max_mat_p;
     end
 end
-
-% display the percent improvements (in optimization regions and in
-% materials)
-perc_improvement = (n_p-n_o)/n_o*100;
-perc_improvement_mat = (n_mat_p-n_mat_o)/n_mat_o*100;
-
-display(['percent improvement in acceleration factor in design region = ', num2str(perc_improvement), ' %']);
-display(['percent improvement in acceleration factor in material region = ', num2str(perc_improvement_mat), ' %']);
