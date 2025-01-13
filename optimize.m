@@ -11,13 +11,14 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 3000;                                   % number of iterations
+N = 500;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 50;                         % number of grid points in a free space wavelength
 gap_nm       = 400;                         % gap size in nm
+gap_gap_nm = 200;
 L = 1.0;                                      % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
@@ -43,14 +44,14 @@ pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left
 spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
 gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
 Lpts = round(L/dlx);                        % number of points in the optimization region
-gap_gap = floor(grids_in_lam/2);
+gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
 
 Nx = ceil(lambda0*beta/dlx);                % number of grid points in x
-Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap;  % number of grid points perpendicular to trajectory
+Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;  % number of grid points perpendicular to trajectory
 
 nx = floor(Nx/2);
 ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
-ny2 = floor(gap_pts + gap_pts/2 + gap_gap + pos_src + Lpts + spc_pts);
+ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
 
 % First compute G maximization, then do G/E_max maximization (for comparison)
 % for min_G_Emax = (0:1)
@@ -65,7 +66,7 @@ for min_G_Emax = 0
     A_best = 0;
     
     b = zeros(Nx,Ny);                       % TFSF map.  read up on total-field scattered-field if you are interested.
-    b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap + gap_pts + Lpts + spc_pts) = 1;  % define the total field region on the grid
+    b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts + spc_pts) = 1;  % define the total field region on the grid
     kinc = [0,1];                           % plane wave incident direction (perp. to electron)
     
     RES = [dlx,dly];                        % grid resolution vector
@@ -79,8 +80,8 @@ for min_G_Emax = 0
     
     delta_device = zeros(Nx,Ny);            % delta_device is 0 where the permittivity doesn't change.  otherwise it is 1 in the optimization region.
     delta_device(1:Nx, pos_src + spc_pts : pos_src + spc_pts + Lpts) = 1;
-    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap) = 1;
-    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap + gap_pts + Lpts) = 1;
+    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts) = 1;
+    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
     delta_device_vec = delta_device(:);     % vector version of delta_device (matlab likes this better)
     
     % define the eta vector field.  see the paper for more details.
@@ -254,6 +255,7 @@ for min_G_Emax = 0
         % record best permittivity if applicable
         % this line does nothing
         if (G > G_best)
+            G_best = G;
             ER_best = ER;
         end
         
@@ -329,30 +331,43 @@ for min_G_Emax = 0
         imagesc(transpose(ER_disp + real(field_disp*exp(-1i*t/40))),[-5,5]); pause(0.0001);
     end
     
-    % force the permittivity distribution binary
+    % force the permittivity distribution binary for ER and ER_best
     eps_avg = (eps+1)/2;
     ER(ER<eps_avg) = 1;
     ER(ER>=eps_avg) = eps;
+    ER_best(ER_best<eps_avg) = 1;
+    ER_best(ER_best>=eps_avg) = eps;
     
-    % do another simulation of the binary distribution
+    % do another simulation of the binary distribution for ER
     [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
     Ex = fields.Ex/E0;
     Ey = fields.Ey/E0;
     
-    % compute the gradient
-    g = sum(sum(eta1.*Ex)) + sum(sum(eta2.*Ex));
-    G = abs(g); % why abs?
+    % compute the gradient for ER
+    g_ER = sum(sum(eta1.*Ex)) + sum(sum(eta2.*Ex));
+    G_ER = abs(g_ER); % why abs?
     
-    % save
+    % do another simulation of the binary distribution for ER_best
+    [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+    Ex_best = fields_best.Ex/E0;
+    Ey_best = fields_best.Ey/E0;
+    
+    % compute the gradient for ER_best
+    g_ER_best = sum(sum(eta1.*Ex_best)) + sum(sum(eta2.*Ex_best));
+    G_ER_best = abs(g_ER_best); % why abs?
+    
+    % save both gradients into the same file
     timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-    fname = sprintf('result/final_acceleration_gradient_%s.txt', timestamp);
+    fname = sprintf('result/final_acceleration_gradients_%s.txt', timestamp);
     fileID = fopen(fname, 'w');
-    fprintf(fileID, '%f\n', G);
+    fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
+    fprintf(fileID, 'Gradient for ER_best: %f\n', G_ER_best);
     fclose(fileID);
     fprintf('File saved as: %s\n', fname);
     
     % --- 2値化後の最終加速勾配を表示 ---
-    fprintf('\nFinal Acceleration Gradient after Binarization: %f\n', G);
+    fprintf('\nFinal Acceleration Gradient for ER after Binarization: %f\n', G_ER);
+    fprintf('Final Acceleration Gradient for ER_best after Binarization: %f\n', G_ER_best);
     
     % display and save final structure
     finalFig = figure('Name','Final Structure','Visible','on');
@@ -375,27 +390,24 @@ for min_G_Emax = 0
     figName = sprintf('result/final_structure_%s.png', timestamp);
     saveas(finalFig, figName);  % 画像保存
     
-    % get the maximum fields in material and optimization region
-    E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
-    E_max = max(E_abs(:));
+    % display and save best structure
+    bestFig = figure('Name','Best Structure','Visible','on');
     
-    E_abs_mat = (ER > 1).*sqrt(abs(Ex).^2 + abs(Ey).^2);
-    E_max_mat = max(E_abs_mat(:));
-    
-    % compute the acceleration factors and save
-    if (~min_G_Emax)
-        ER_o = ER;
-        G_o = G;
-        E_max_o = E_max;
-        E_max_mat_o = E_max_mat;
-        n_o = G_o/E_max_o;
-        n_mat_o = G_o/E_max_mat_o;
-    else
-        ER_p = ER;
-        G_p = G;
-        E_max_p = E_max;
-        E_max_mat_p = E_max_mat;
-        n_p = G_p/E_max_p;
-        n_mat_p = G_p/E_max_mat_p;
+    % 繰り返し連結用の変数を初期化
+    disp_best = [];
+    for k = 1:5
+        % ER_best を縦方向に 5 回連結
+        disp_best = [disp_best; real(ER_best)];
     end
+    
+    % 繰り返した配列を可視化
+    imagesc(disp_best, [1, eps]);
+    colormap(flipud(gray));
+    axis equal tight;
+    title('Best Structure');
+    colorbar();
+    
+    % タイムスタンプ入りの画像ファイル名 (PNG 等)
+    figNameBest = sprintf('result/best_structure_%s.png', timestamp);
+    saveas(bestFig, figNameBest);  % 画像保存
 end
