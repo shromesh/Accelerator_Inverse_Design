@@ -17,9 +17,9 @@ in_material = false;                        % evaluate E_max in material? or in 
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 50;                         % number of grid points in a free space wavelength
-gap_nm_values = 200:10:1300;                % gap size in nm variations with step of 10
+% gap_nm_values = 200:10:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 200:100:1300;
-% gap_nm_values = [800];
+gap_nm_values = [800];
 L = 1.0;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
@@ -124,7 +124,9 @@ for gap_nm = gap_nm_values
         phi = 0;                    % assume input light phase of 0 to start
         AVM_prev = zeros(Nx,Ny);    % store previous sensitivity information for momentum update
         
-        figure(1);                  % open a figure to plot
+        if display_plots
+            figure(1);                  % open a figure to plot
+        end
         
         if ~min_G_Emax
             display('working on gradient maximized structure');
@@ -381,7 +383,11 @@ for gap_nm = gap_nm_values
         % saveas(finalFig, figName);  % 画像保存
         
         % display and save best structure
-        bestFig = figure('Name','Best Structure','Visible','on');
+        if display_plots
+            bestFig = figure('Name','Best Structure','Visible','on');
+        else
+            bestFig = figure('Name','Best Structure','Visible','off');
+        end
         
         % 繰り返し連結用の変数を初期化
         disp_best = [];
