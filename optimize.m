@@ -342,14 +342,17 @@ for min_G_Emax = (0:1)
     g = sum(sum(eta1.*Ex)) + sum(sum(eta2.*Ex));
     G = abs(g);
     
-    % --- 2値化後の最終加速勾配を表示 ---
-    fprintf('\nFinal Acceleration Gradient after Binarization: %f\n', G);
-    
-    % --- ファイルに出力 ---
-    fname = 'final_acceleration_gradient.txt';      % 出力先ファイル名
+    % save
+    timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
+    fname = sprintf('final_acceleration_gradient_%s.txt', timestamp);
     fileID = fopen(fname, 'w');
     fprintf(fileID, '%f\n', G);
     fclose(fileID);
+    fprintf('File saved as: %s\n', fname);
+    
+    % --- 2値化後の最終加速勾配を表示 ---
+    fprintf('\nFinal Acceleration Gradient after Binarization: %f\n', G);
+    
     
     % get the maximum fields in material and optimization region
     E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
