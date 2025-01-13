@@ -5,7 +5,7 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                       % plotting during the run?
+display_plots = false;                       % plotting during the run?
 
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
@@ -17,8 +17,9 @@ in_material = false;                        % evaluate E_max in material? or in 
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 50;                         % number of grid points in a free space wavelength
+% gap_nm_values = 300:10:800;                % gap size in nm variations for 300, 310, 320,... 800
 gap_nm_values = [300, 400, 500];            % gap size in nm variations
-L = 1.0;                                      % size of optimization region (um)
+L = 1.0;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
 % resonance can occur very strongly. Need to try different values and see
@@ -342,7 +343,7 @@ for gap_nm = gap_nm_values
         
         % save both gradients into the same file
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-        fname = sprintf('result/final_acceleration_gradients_gap_%d_%s.txt', gap_nm, timestamp);
+        fname = sprintf('result/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', gap_nm, timestamp, gap_nm);
         fileID = fopen(fname, 'w');
         % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
         fprintf(fileID, 'G_best: %f\n', G_best);
@@ -368,7 +369,7 @@ for gap_nm = gap_nm_values
         % colorbar();
         
         % % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        % figName = sprintf('result/final_structure_%s.png', timestamp);
+        % figName = sprintf('result/final_structure_%s_gap_%d.png', timestamp, gap_nm);
         % saveas(finalFig, figName);  % 画像保存
         
         % display and save best structure
@@ -389,7 +390,7 @@ for gap_nm = gap_nm_values
         colorbar();
         
         % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        figNameBest = sprintf('result/best_structure_gap_%d_%s.png', gap_nm, timestamp);
+        figNameBest = sprintf('result/best_structure_gap_%d_%s_gap_%d.png', gap_nm, timestamp, gap_nm);
         saveas(bestFig, figNameBest);  % 画像保存
     end
 end
