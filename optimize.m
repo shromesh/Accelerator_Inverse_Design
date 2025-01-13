@@ -53,7 +53,8 @@ ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
 ny2 = floor(gap_pts + gap_pts/2 + gap_gap + pos_src + Lpts + spc_pts);
 
 % First compute G maximization, then do G/E_max maximization (for comparison)
-for min_G_Emax = (0:1)
+% for min_G_Emax = (0:1)
+for min_G_Emax = 0
     
     %% This section defines the input parameters that my FDFD code needs to run.
     %  see the FDFD.m code or FDFD_TFSF.m for a more detailed explanation.
@@ -344,7 +345,7 @@ for min_G_Emax = (0:1)
     
     % save
     timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-    fname = sprintf('final_acceleration_gradient_%s.txt', timestamp);
+    fname = sprintf('result/final_acceleration_gradient_%s.txt', timestamp);
     fileID = fopen(fname, 'w');
     fprintf(fileID, '%f\n', G);
     fclose(fileID);
@@ -355,15 +356,24 @@ for min_G_Emax = (0:1)
     
     % display and save final structure
     finalFig = figure('Name','Final Structure','Visible','on');
-    imagesc(real(ER), [1, eps]);      % 2値化したので [1, eps] の範囲
+    
+    % 繰り返し連結用の変数を初期化
+    disp_final = [];
+    for k = 1:5
+        % ER を縦方向に 5 回連結
+        disp_final = [disp_final; real(ER)];
+    end
+    
+    % 繰り返した配列を可視化
+    imagesc(disp_final, [1, eps]);  % 2値化後なので [1, eps] の範囲
     colormap(flipud(gray));
     axis equal tight;
     title('Final Binarized Structure');
     colorbar();
     
     % タイムスタンプ入りの画像ファイル名 (PNG 等)
-    figName = sprintf('final_structure_%s.png', timestamp);
-    saveas(finalFig, figName);        % 画像保存（形式は自由に選択可能）
+    figName = sprintf('result/final_structure_%s.png', timestamp);
+    saveas(finalFig, figName);  % 画像保存
     
     % get the maximum fields in material and optimization region
     E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
