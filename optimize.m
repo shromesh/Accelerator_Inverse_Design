@@ -11,7 +11,7 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 500;                                   % number of iterations
+N = 1000;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -256,7 +256,11 @@ for min_G_Emax = 0
         % this line does nothing
         if (G > G_best)
             G_best = G;
+            G1_best = G1;
+            G2_best = G2;
             ER_best = ER;
+            g1_best = g1;
+            g2_best = g2;
         end
         
         % plot stuff without too much hastle, display % done
@@ -368,6 +372,19 @@ for min_G_Emax = 0
     % --- 2値化後の最終加速勾配を表示 ---
     fprintf('\nFinal Acceleration Gradient for ER after Binarization: %f\n', G_ER);
     fprintf('Final Acceleration Gradient for ER_best after Binarization: %f\n', G_ER_best);
+    
+    % save g1, g2, and G into the same file
+    fname_g = sprintf('result/gradients_g1_g2_G_%s.txt', timestamp);
+    fileID_g = fopen(fname_g, 'w');
+    fprintf(fileID_g, 'g1: %f\n', g1);
+    fprintf(fileID_g, 'g2: %f\n', g2);
+    fprintf(fileID_g, 'G: %f\n', G);
+    fprintf(fileID_g, 'G1_best: %f\n', G1_best);
+    fprintf(fileID_g, 'G2_best: %f\n', G2_best);
+    fprintf(fileID_g, 'g1_best: %f\n', g1_best);
+    fprintf(fileID_g, 'g2_best: %f\n', g2_best);
+    fclose(fileID_g);
+    fprintf('File saved as: %s\n', fname_g);
     
     % display and save final structure
     finalFig = figure('Name','Final Structure','Visible','on');
