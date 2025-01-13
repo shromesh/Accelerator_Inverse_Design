@@ -11,7 +11,7 @@ display_plots = false;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 1000;                                   % number of iterations
+N = 700;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -39,6 +39,8 @@ gamma = 0.9;                             % 'momentum term', see paper.  Set betw
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
 dly  = dlx;                                 % spacing in the perpendicular direction
+
+G_best_values = [];                         % Array to store G_best for each gap size
 
 for gap_nm = gap_nm_values
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -351,6 +353,9 @@ for gap_nm = gap_nm_values
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
+        % store G_best value for this gap size
+        G_best_values = [G_best_values; G_best];
+        
         % display and save final structure
         % finalFig = figure('Name','Final Structure','Visible','on');
         
@@ -394,3 +399,13 @@ for gap_nm = gap_nm_values
         saveas(bestFig, figNameBest);  % 画像保存
     end
 end
+
+% Plot G_best for each gap size and save the figure
+figure;
+plot(gap_nm_values, G_best_values, '-o');
+xlabel('Gap size (nm)');
+ylabel('G\_best');
+title('G\_best for each gap size');
+grid on;
+saveas(gcf, sprintf('result/G_best_vs_gap_size_%s.png', timestamp));
+
