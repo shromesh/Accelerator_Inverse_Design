@@ -322,13 +322,13 @@ for min_G_Emax = 0
     ER_best(ER_best>=eps_avg) = eps;
     
     % do another simulation of the binary distribution for ER
-    [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-    Ex = fields.Ex/E0;
-    Ey = fields.Ey/E0;
+    % [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+    % Ex = fields.Ex/E0;
+    % Ey = fields.Ey/E0;
     
-    % compute the gradient
-    g_ER = sum(sum(eta.*Ex));
-    G_ER = abs(g_ER); % why abs?
+    % % compute the gradient
+    % g_ER = sum(sum(eta.*Ex));
+    % G_ER = abs(g_ER); % why abs?
     
     % do another simulation of the binary distribution for ER_best
     [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
@@ -336,42 +336,39 @@ for min_G_Emax = 0
     Ey_best = fields_best.Ey/E0;
     
     % compute the gradient for ER_best
-    g_ER_best = sum(sum(eta.*Ex_best));
-    G_ER_best = abs(g_ER_best); % why abs?
+    g_best = sum(sum(eta.*Ex_best));
+    G_best = abs(g_best); % why abs?
     
     % save both gradients into the same file
     timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
     fname = sprintf('result/final_acceleration_gradients_%s.txt', timestamp);
     fileID = fopen(fname, 'w');
-    fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
-    fprintf(fileID, 'Gradient for ER_best: %f\n', G_ER_best);
+    % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
+    fprintf(fileID, 'G_best: %f\n', G_best);
+    fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
     fclose(fileID);
     fprintf('File saved as: %s\n', fname);
     
-    % --- 2値化後の最終加速勾配を表示 ---
-    fprintf('\nFinal Acceleration Gradient for ER after Binarization: %f\n', G_ER);
-    fprintf('Final Acceleration Gradient for ER_best after Binarization: %f\n', G_ER_best);
-    
     % display and save final structure
-    finalFig = figure('Name','Final Structure','Visible','on');
+    % finalFig = figure('Name','Final Structure','Visible','on');
     
     % binary distributionにした後のERで，繰り返し連結用の変数を初期化
-    disp_final = [];
-    for k = 1:5
-        % ER を縦方向に 5 回連結
-        disp_final = [disp_final; real(ER)];
-    end
+    % disp_final = [];
+    % for k = 1:5
+    %     % ER を縦方向に 5 回連結
+    %     disp_final = [disp_final; real(ER)];
+    % end
     
-    % 繰り返した配列を可視化
-    imagesc(disp_final, [1, eps]);  % 2値化後なので [1, eps] の範囲
-    colormap(flipud(gray));
-    axis equal tight;
-    title('Final Binarized Structure');
-    colorbar();
+    % % 繰り返した配列を可視化
+    % imagesc(disp_final, [1, eps]);  % 2値化後なので [1, eps] の範囲
+    % colormap(flipud(gray));
+    % axis equal tight;
+    % title('Final Binarized Structure');
+    % colorbar();
     
-    % タイムスタンプ入りの画像ファイル名 (PNG 等)
-    figName = sprintf('result/final_structure_%s.png', timestamp);
-    saveas(finalFig, figName);  % 画像保存
+    % % タイムスタンプ入りの画像ファイル名 (PNG 等)
+    % figName = sprintf('result/final_structure_%s.png', timestamp);
+    % saveas(finalFig, figName);  % 画像保存
     
     % display and save best structure
     bestFig = figure('Name','Best Structure','Visible','on');
