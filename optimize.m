@@ -37,6 +37,8 @@ nmax = sqrt(eps);    % refractive index of material region
 
 gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
+output_folder_name = 'result/one_channel_step_10_jan14_2255';
+
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
 dly  = dlx;                                 % spacing in the perpendicular direction
@@ -349,7 +351,7 @@ for gap_nm = gap_nm_values
         
         % save both gradients into the same file
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-        fname = sprintf('result/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', gap_nm, timestamp, gap_nm);
+        fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', output_folder_name, gap_nm, timestamp, gap_nm);
         fileID = fopen(fname, 'w');
         % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
         fprintf(fileID, 'G_best: %f\n', G_best);
@@ -379,7 +381,7 @@ for gap_nm = gap_nm_values
         % colorbar();
         
         % % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        % figName = sprintf('result/final_structure_%s_gap_%d.png', timestamp, gap_nm);
+        % figName = sprintf('%s/final_structure_%s_gap_%d.png', output_folder_name, timestamp, gap_nm);
         % saveas(finalFig, figName);  % 画像保存
         
         % display and save best structure
@@ -404,7 +406,7 @@ for gap_nm = gap_nm_values
         colorbar();
         
         % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        figNameBest = sprintf('result/best_structure_gap_%d_%s_gap_%d.png', gap_nm, timestamp, gap_nm);
+        figNameBest = sprintf('%s/best_structure_gap_%d_%s_gap_%d.png', output_folder_name, gap_nm, timestamp, gap_nm);
         saveas(bestFig, figNameBest);  % 画像保存
     end
 end
@@ -416,7 +418,7 @@ xlabel('Gap size (nm)');
 ylabel('G\_best');
 title('G\_best for each gap size');
 grid on;
-saveas(gcf, sprintf('result/G_best_vs_gap_size_%s.png', timestamp));
+saveas(gcf, sprintf('%s/G_best_vs_gap_size_%s.png', output_folder_name, timestamp));
 
 % Plot G_best * gap for each gap size and save the figure
 figure;
@@ -425,5 +427,4 @@ xlabel('Gap size (nm)');
 ylabel('Power = G\_best * Gap');
 title('Power = G\_best * Gap for each gap size');
 grid on;
-saveas(gcf, sprintf('result/G_best_times_gap_vs_gap_size_%s.png', timestamp));
-
+saveas(gcf, sprintf('%s/G_best_times_gap_vs_gap_size_%s.png', output_folder_name, timestamp));
