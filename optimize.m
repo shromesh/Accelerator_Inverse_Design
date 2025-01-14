@@ -41,11 +41,6 @@ output_folder_name = 'result/2_channel_step_10_jan13';
 
 %% ループ開始
 for gap_nm = gap_nm_values
-    
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % 以下，元の multi channel コード
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
     %% SET OTHER CONSTANTS (DON'T CHANGE)
     dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
     dly = dlx;                                  % spacing in the perpendicular direction
