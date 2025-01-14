@@ -37,7 +37,8 @@ nmax = sqrt(eps);    % refractive index of material region
 
 gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
-output_folder_name = 'result/one_channel_step_10_jan14_2255';
+% output_folder_name = 'result/one_channel_step_10_jan14_2255';
+output_folder_name = 'result';
 
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
