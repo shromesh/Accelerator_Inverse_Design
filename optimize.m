@@ -29,7 +29,8 @@ nmax = sqrt(eps);                           % refractive index of material regio
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 100:10:1300;
+% gap_nm_values = 100:10:1300;
+gap_nm_values = [200];
 
 %% 各 gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
@@ -320,6 +321,10 @@ for gap_nm = gap_nm_values
         % 最終的に abs で取るかは元のコードの通り
         G_best_local = abs(g_best);
         
+        % E_max の計算
+        E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+        E_max = max(E_abs(:));
+        
         % 結果を保存
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
         fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s.txt', output_folder_name, gap_nm, timestamp);
@@ -330,6 +335,7 @@ for gap_nm = gap_nm_values
         fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
         fprintf(fileID, 'g1_best: %f + %fi\n', real(g1_best), imag(g1_best));
         fprintf(fileID, 'g2_best: %f + %fi\n', real(g2_best), imag(g2_best));
+        fprintf(fileID, 'E_max: %f\n', E_max);
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
