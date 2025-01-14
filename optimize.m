@@ -349,6 +349,10 @@ for gap_nm = gap_nm_values
         g_best = sum(sum(eta.*Ex_best));
         G_best = abs(g_best); % why abs?
         
+        % calculate E_max for ER_best
+        E_abs_best = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+        E_max_best = max(E_abs_best(:));
+        
         % save both gradients into the same file
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
         fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', output_folder_name, gap_nm, timestamp, gap_nm);
@@ -356,6 +360,7 @@ for gap_nm = gap_nm_values
         % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
         fprintf(fileID, 'G_best: %f\n', G_best);
         fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
+        fprintf(fileID, 'E_max: %f\n', E_max_best);
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
@@ -424,7 +429,7 @@ saveas(gcf, sprintf('%s/G_best_vs_gap_size_%s.png', output_folder_name, timestam
 figure;
 plot(gap_nm_values, G_best_times_gap_values, '-o');
 xlabel('Gap size (nm)');
-ylabel('Power = G\_best * Gap');
-title('Power = G\_best * Gap for each gap size');
+ylabel('Power (G\_best * Gap)');
+title('Power (G\_best * Gap) for each gap size');
 grid on;
 saveas(gcf, sprintf('%s/G_best_times_gap_vs_gap_size_%s.png', output_folder_name, timestamp));
