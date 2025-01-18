@@ -10,7 +10,7 @@ display_plots = true;                      % plotting during the run? (false に
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 1500;                                    % number of iterations
+N = 800;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -210,7 +210,7 @@ for gap_nm = gap_nm_values
             % b_aj1 = transpose(G/Sa^2 * sigma);
             % b_aj2 = -eta1_aj/Sa - eta2_aj/Sa;
             
-            display(Sa);
+            % display(Sa);
             
             if (min_G_Emax)
                 % b_aj = b_aj1 + b_aj2;
@@ -218,6 +218,7 @@ for gap_nm = gap_nm_values
                 % b_aj = b_aj2;
                 b_aj = -eta1_aj/Sa - eta2_aj/Sa;
                 % b_aj = -eta1_aj - eta2_aj;
+                % b_aj = -eta1_aj;
             end
             b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
             b_aj(isnan(b_aj)) = 0 ;
