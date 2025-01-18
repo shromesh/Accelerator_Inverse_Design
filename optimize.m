@@ -16,7 +16,7 @@ N = 700;                                   % number of iterations
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 50;                         % number of grid points in a free space wavelength
+grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 200:50:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 200:100:1300;
@@ -229,8 +229,7 @@ for gap_nm = gap_nm_values
             Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
             
             % compute sensitivity information
-            % AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
-            AVM = -abs((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
+            AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
             
             % record relevant variables in the arrays
             E_max = max(max((E_abs)));
@@ -350,8 +349,8 @@ for gap_nm = gap_nm_values
         
         % compute the gradient for ER_best
         g_best = sum(sum(eta.*Ex_best));
-        % G_best = abs(g_best); % why abs?
-        G_best = real(g_best); % why abs?
+        G_best = abs(g_best); % why abs?
+        % G_best = real(g_best); % why abs?
         
         % calculate E_max for ER_best
         E_abs_best = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
