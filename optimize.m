@@ -5,7 +5,7 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                       % plotting during the run?
+display_plots = false;                       % plotting during the run?
 
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
@@ -16,8 +16,8 @@ N = 700;                                   % number of iterations
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-% grids_in_lam = 50;                         % number of grid points in a free space wavelength
-grids_in_lam = 100;                         % number of grid points in a free space wavelength
+grids_in_lam = 50;                         % number of grid points in a free space wavelength
+% grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 200:50:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 200:100:1300;
 gap_nm_values = [400];
