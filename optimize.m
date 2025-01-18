@@ -29,10 +29,10 @@ nmax = sqrt(eps);                           % refractive index of material regio
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm = 200;
+gap_nm = 400;
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 100:100:600;
+gap_gap_nm_values = 100:100:800;
 
 %% 各 gap_gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
