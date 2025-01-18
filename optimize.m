@@ -5,12 +5,12 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = false;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+display_plots = true;                      % plotting during the run? (false にするとiteration中の表示を行わない)
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 800;                                    % number of iterations
+N = 1500;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -38,7 +38,7 @@ G_best_times_gap_times2  = [];  % G_best * gap * 2
 Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/2_channel_step_10_jan13';
+output_folder_name = 'result/plot_ex_and_eta_gap200_gapgap300_iter800';
 
 %% ループ開始
 for gap_nm = gap_nm_values
@@ -51,7 +51,7 @@ for gap_nm = gap_nm_values
     
     % ここでは「2つのギャップ + 中央ギャップ (gap_gap_nm)」のようにしていたコードを
     % そのまま残していますが，適宜変更してください．
-    gap_gap_nm = 200;                           % 例として固定 (2つのギャップの間のギャップ)
+    gap_gap_nm = 300;                           % 例として固定 (2つのギャップの間のギャップ)
     gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
     
     L = 1.0;                                    % size of optimization region (um)
@@ -133,8 +133,8 @@ for gap_nm = gap_nm_values
         G_best_local = 0;          % best gradient in this run
         Gs = zeros(N,1);
         E_maxs = zeros(N,1);
-        G_by_Es = zeros(N,1);
-        G_by_Sa = zeros(N,1);
+        % G_by_Es = zeros(N,1);
+        % G_by_Sa = zeros(N,1);
         
         phis = zeros(N,1);
         phi = 0;
@@ -192,29 +192,32 @@ for gap_nm = gap_nm_values
             end
             
             x_abs = E_abs(:);
-            alpha_vec = exp(x_abs*a);
+            alpha_vec = exp(x_abs*a); % a=3
             alpha_T_1 = sum(alpha_vec);
             Sa = sum(alpha_vec.*x_abs)/alpha_T_1;
             
-            x = [Ex(:); Ey(:)];
-            z = conj(x./[x_abs;x_abs]);
-            z(isnan(z)) = 0;
-            z(isinf(z)) = 0;
-            spdiagz = spdiags(z,0,Nx*Ny*2,Nx*Ny*2);
-            P = [speye(Nx*Ny) speye(Nx*Ny)];
+            % x = [Ex(:); Ey(:)];
+            % z = conj(x./[x_abs;x_abs]);
+            % z(isnan(z)) = 0;
+            % z(isinf(z)) = 0;
+            % spdiagz = spdiags(z,0,Nx*Ny*2,Nx*Ny*2);
+            % P = [speye(Nx*Ny) speye(Nx*Ny)];
             
-            S = real(1/alpha_T_1*(speye(Nx*Ny) + a*spdiags(x_abs,0,Nx*Ny,Nx*Ny) ...
-                - a*sum(alpha_vec.*x_abs)/alpha_T_1*speye(Nx*Ny)));
-            sigma = transpose(alpha_vec)*S*(P*spdiagz);
-            sigma(isnan(sigma)) = 0;
+            % S = real(1/alpha_T_1*(speye(Nx*Ny) + a*spdiags(x_abs,0,Nx*Ny,Nx*Ny) - a*sum(alpha_vec.*x_abs)/alpha_T_1*speye(Nx*Ny)));
+            % sigma = transpose(alpha_vec)*S*(P*spdiagz);
+            % sigma(isnan(sigma)) = 0;
             
-            b_aj1 = transpose(G/Sa^2 * sigma);
-            b_aj2 = -eta1_aj/Sa - eta2_aj/Sa;
+            % b_aj1 = transpose(G/Sa^2 * sigma);
+            % b_aj2 = -eta1_aj/Sa - eta2_aj/Sa;
+            
+            display(Sa);
             
             if (min_G_Emax)
-                b_aj = b_aj1 + b_aj2;
+                % b_aj = b_aj1 + b_aj2;
             else
-                b_aj = b_aj2;
+                % b_aj = b_aj2;
+                b_aj = -eta1_aj/Sa - eta2_aj/Sa;
+                % b_aj = -eta1_aj - eta2_aj;
             end
             b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
             b_aj(isnan(b_aj)) = 0 ;
@@ -232,8 +235,8 @@ for gap_nm = gap_nm_values
             E_max = max(max(E_abs));
             E_maxs(j) = E_max;
             Gs(j) = G;
-            G_by_Es(j) = G/E_max;
-            G_by_Sa(j) = G/Sa;
+            % G_by_Es(j) = G/E_max;
+            % G_by_Sa(j) = G/Sa;
             
             % update permittivity
             ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
@@ -271,18 +274,7 @@ for gap_nm = gap_nm_values
                 set(gca,'FontSize',22,'fontWeight','normal')
                 colorbar()
                 
-                subplot(2,2,3);
-                plot((1:j),G_by_Es(1:j));
-                hold all;
-                plot((1:j),G_by_Sa(1:j));
-                xlabel('iteration number')
-                ylabel('G/|E|max')
-                title('acceleration factor')
-                legend({'actual','smooth-max'})
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                
-                subplot(2,2,4); hold all;
+                subplot(2,2,3); hold all;
                 plot((1:j),phis(1:j));
                 plot((1:j),zeros(j,1));
                 xlabel('iteration number');
@@ -291,7 +283,6 @@ for gap_nm = gap_nm_values
                 title('acceleration phase (\phi)')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
-                
                 pause(0.001);
             end
         end
@@ -336,6 +327,9 @@ for gap_nm = gap_nm_values
         fprintf(fileID, 'g1_best: %f + %fi\n', real(g1_best), imag(g1_best));
         fprintf(fileID, 'g2_best: %f + %fi\n', real(g2_best), imag(g2_best));
         fprintf(fileID, 'E_max: %f\n', E_max);
+        fprintf(fileID, 'nx: %d\n', nx);
+        fprintf(fileID, 'ny1: %d\n', ny1);
+        fprintf(fileID, 'ny2: %d\n', ny2);
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
@@ -359,13 +353,67 @@ for gap_nm = gap_nm_values
         figNameBest = sprintf('%s/best_structure_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
         saveas(bestFig, figNameBest);
         
-        %---- ここで今回の gap に対する G_best_local, G1_best, G2_best を記録
+        %---- ここで今回の gap に対する G_best_local, G1_best, G2_best を append
         G_best_values           = [G_best_values; G_best_local];
         % 2チャネル分 => G_best * gap_nm * 2
         G_best_times_gap_times2 = [G_best_times_gap_times2; G_best_local * gap_nm * 2];
         % (G1_best + G2_best)*gap_nm
         Gsum_times_gap_values   = [Gsum_times_gap_values; (G1_best + G2_best)*gap_nm];
         
+        % x座標（um）の配列を準備
+        xvals = (0:Nx-1)*dlx;  % 例として 0 から (Nx-1)*dlx まで
+        
+        % --------- Channel 1 の Ex, eta プロットを1次元に変更 ---------
+        fig1 = figure('Name', 'Ex and eta for Channel 1', 'Visible', 'on');
+        subplot(2,1,1);
+        plot(xvals, real(Ex_best(:, ny1)), 'LineWidth', 1);
+        hold on;
+        plot(xvals, imag(Ex_best(:, ny1)), 'LineWidth', 1);
+        xlabel('x [\mum]');
+        ylabel('Ex');
+        title(sprintf('Ex at y = ny1 = %d (Channel 1)', ny1));
+        legend({'Re\{Ex\}', 'Im\{Ex\}'});
+        grid on;
+        
+        subplot(2,1,2);
+        plot(xvals, real(eta1(:, ny1)), 'LineWidth', 1);
+        hold on;
+        plot(xvals, imag(eta1(:, ny1)), 'LineWidth', 1);
+        xlabel('x [\mum]');
+        ylabel('eta1');
+        title(sprintf('eta1 at y = ny1 = %d (Channel 1)', ny1));
+        legend({'Re\{eta1\}', 'Im\{eta1\}'});
+        grid on;
+        
+        % 図を保存
+        figNameExEta1 = sprintf('%s/Ex_eta_Channel1_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
+        saveas(fig1, figNameExEta1);
+        
+        % --------- Channel 2 の Ex, eta プロットを1次元に変更 ---------
+        fig2 = figure('Name', 'Ex and eta for Channel 2', 'Visible', 'on');
+        subplot(2,1,1);
+        plot(xvals, real(Ex_best(:, ny2)), 'LineWidth', 1);
+        hold on;
+        plot(xvals, imag(Ex_best(:, ny2)), 'LineWidth', 1);
+        xlabel('x [\mum]');
+        ylabel('Ex');
+        title(sprintf('Ex at y = ny2 = %d (Channel 2)', ny2));
+        legend({'Re\{Ex\}', 'Im\{Ex\}'});
+        grid on;
+        
+        subplot(2,1,2);
+        plot(xvals, real(eta2(:, ny2)), 'LineWidth', 1);
+        hold on;
+        plot(xvals, imag(eta2(:, ny2)), 'LineWidth', 1);
+        xlabel('x [\mum]');
+        ylabel('eta2');
+        title(sprintf('eta2 at y = ny2 = %d (Channel 2)', ny2));
+        legend({'Re\{eta2\}', 'Im\{eta2\}'});
+        grid on;
+        
+        % 図を保存
+        figNameExEta2 = sprintf('%s/Ex_eta_Channel2_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
+        saveas(fig2, figNameExEta2);
     end % end of min_G_Emax loop
     
 end % end of gap_nm loop
