@@ -29,10 +29,12 @@ nmax = sqrt(eps);                           % refractive index of material regio
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 100:10:1300;
-gap_nm_values = [200];
+gap_nm = 200;
 
-%% 各 gap に対する最終的な G_best を格納する配列
+%% gap_gap を変化させるための配列
+gap_gap_nm_values = 100:100:600;
+
+%% 各 gap_gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
 G_best_times_gap_times2  = [];  % G_best * gap * 2
 Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
@@ -41,7 +43,7 @@ Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
 output_folder_name = 'result/2_channel_step_10_jan13';
 
 %% ループ開始
-for gap_nm = gap_nm_values
+for gap_gap_nm = gap_gap_nm_values
     %% SET OTHER CONSTANTS (DON'T CHANGE)
     dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
     dly = dlx;                                  % spacing in the perpendicular direction
@@ -49,9 +51,7 @@ for gap_nm = gap_nm_values
     % gap_nm から grid point に換算
     gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
     
-    % ここでは「2つのギャップ + 中央ギャップ (gap_gap_nm)」のようにしていたコードを
-    % そのまま残していますが，適宜変更してください．
-    gap_gap_nm = 200;                           % 例として固定 (2つのギャップの間のギャップ)
+    % gap_gap_nm から grid point に換算
     gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
     
     L = 1.0;                                    % size of optimization region (um)
@@ -327,7 +327,7 @@ for gap_nm = gap_nm_values
         
         % 結果を保存
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-        fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s.txt', output_folder_name, gap_nm, timestamp);
+        fname = sprintf('%s/final_acceleration_gradients_gap_gap_%d_%s.txt', output_folder_name, gap_gap_nm, timestamp);
         fileID = fopen(fname, 'w');
         fprintf(fileID, 'G_best (abs): %f\n', G_best_local);
         fprintf(fileID, 'G1_best: %f\n', G1_best);
@@ -353,10 +353,10 @@ for gap_nm = gap_nm_values
         imagesc(disp_best, [1, eps]);
         colormap(flipud(gray));
         axis equal tight;
-        title(sprintf('Best Structure (gap = %d nm)', gap_nm));
+        title(sprintf('Best Structure (gap_gap = %d nm)', gap_gap_nm));
         colorbar();
         
-        figNameBest = sprintf('%s/best_structure_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
+        figNameBest = sprintf('%s/best_structure_gap_gap_%d_%s.png', output_folder_name, gap_gap_nm, timestamp);
         saveas(bestFig, figNameBest);
         
         %---- ここで今回の gap に対する G_best_local, G1_best, G2_best を記録
@@ -368,34 +368,34 @@ for gap_nm = gap_nm_values
         
     end % end of min_G_Emax loop
     
-end % end of gap_nm loop
+end % end of gap_gap_nm loop
 
 
 %% gap を x軸として，以下の3種をプロット
 % (a) G_best vs gap
 figure;
-plot(gap_nm_values, G_best_values, '-o');
-xlabel('gap (nm)');
+plot(gap_gap_nm_values, G_best_values, '-o');
+xlabel('gap\_gap (nm)');
 ylabel('G\_best');
-title('G\_best vs. gap (2-channel)');
+title('G\_best vs. gap\_gap (2-channel)');
 grid on;
-saveas(gcf, sprintf('%s/G_best_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/G_best_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
-% (b) G_best * gap * 2 vs gap
+% (b) G_best * gap * 2 vs gap_gap
 figure;
-plot(gap_nm_values, G_best_times_gap_times2, '-o');
-xlabel('gap (nm)');
+plot(gap_gap_nm_values, G_best_times_gap_times2, '-o');
+xlabel('gap\_gap (nm)');
 ylabel('G\_best * gap * 2');
-title('G\_best * gap * 2 vs. gap (2-channel)');
+title('G\_best * gap * 2 vs. gap\_gap (2-channel)');
 grid on;
-saveas(gcf, sprintf('%s/G_best_times_gap_times2_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/G_best_times_gap_times2_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
-% (c) (G1_best + G2_best) * gap vs gap
+% (c) (G1_best + G2_best) * gap vs gap_gap
 figure;
-plot(gap_nm_values, Gsum_times_gap_values, '-o');
-xlabel('gap (nm)');
+plot(gap_gap_nm_values, Gsum_times_gap_values, '-o');
+xlabel('gap\_gap (nm)');
 ylabel('(G1\_best + G2\_best) * gap');
-title('(G1\_best + G2\_best) * gap vs. gap (2-channel)');
+title('(G1\_best + G2\_best) * gap vs. gap\_gap (2-channel)');
 grid on;
-saveas(gcf, sprintf('%s/Gsum_times_gap_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/Gsum_times_gap_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
