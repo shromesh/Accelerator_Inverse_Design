@@ -363,7 +363,11 @@ for gap_nm = gap_nm_values
         xvals = (0:Nx-1)*dlx;  % 例として 0 から (Nx-1)*dlx まで
         
         % --------- Channel 1 の Ex, eta プロットを1次元に変更 ---------
-        fig1 = figure('Name', 'Ex and eta for Channel 1', 'Visible', 'on');
+        if display_plots
+            fig1 = figure('Name', 'Ex and eta for Channel 1', 'Visible', 'on');
+        else
+            fig1 = figure('Name', 'Ex and eta for Channel 1', 'Visible', 'off');
+        end
         subplot(2,1,1);
         plot(xvals, real(Ex_best(:, ny1)), 'LineWidth', 1);
         hold on;
@@ -389,7 +393,11 @@ for gap_nm = gap_nm_values
         saveas(fig1, figNameExEta1);
         
         % --------- Channel 2 の Ex, eta プロットを1次元に変更 ---------
-        fig2 = figure('Name', 'Ex and eta for Channel 2', 'Visible', 'on');
+        if display_plots
+            fig2 = figure('Name', 'Ex and eta for Channel 2', 'Visible', 'on');
+        else
+            fig2 = figure('Name', 'Ex and eta for Channel 2', 'Visible', 'off');
+        end
         subplot(2,1,1);
         plot(xvals, real(Ex_best(:, ny2)), 'LineWidth', 1);
         hold on;
