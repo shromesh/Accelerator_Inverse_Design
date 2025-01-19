@@ -24,7 +24,7 @@ eps = 3.4363^2;     % Si 2um
 %eps = 1.9834^2;    % Si3N4
 %eps = 1.9^2;       % GaOx
 
-nmax = sqrt(eps);                           % refractive index of material region
+% nmax = sqrt(eps);                           % refractive index of material region
 
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
