@@ -5,23 +5,23 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = false;                       % plotting during the run?
+display_plots = true;                       % plotting during the run?
 
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 800;                                   % number of iterations
+N = 1500;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % grids_in_lam = 100;                         % number of grid points in a free space wavelength
-gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
-% gap_nm_values = 200:100:1300;
-% gap_nm_values = [400];
-L = 1.0;                                   % size of optimization region (um)
+% gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
+% gap_nm_values = 100:100:1200;
+gap_nm_values = [400];
+L = 0.45;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
 % resonance can occur very strongly. Need to try different values and see
@@ -38,8 +38,7 @@ nmax = sqrt(eps);    % refractive index of material region
 
 gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
-% output_folder_name = 'result/one_channel_step_10_jan14_2255';
-output_folder_name = 'result/single_channel_step_20_jan18_grids_100';
+output_folder_name = 'result/exp_L_shorter';
 
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
@@ -364,6 +363,7 @@ for gap_nm = gap_nm_values
         fprintf(fileID, 'G_best: %f\n', G_best);
         fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
         fprintf(fileID, 'E_max: %f\n', E_max_best);
+        fprintf(fileID, 'L: %f\n', L); % Output the value of L
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
