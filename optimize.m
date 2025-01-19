@@ -174,6 +174,10 @@ for gap_nm = gap_nm_values
             etaList{k_} = eta_k;  % セル配列に格納
         end
         
+        display(ny_list(1))
+        display(ny_list(2))
+        
+        
         % シミュレーション (全て真空) で基準となる E0 を計算
         [fields_empty, ~] = FDFD_TFSF(ones(Nx,Ny), MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
         Ex0 = fields_empty.Ex;
