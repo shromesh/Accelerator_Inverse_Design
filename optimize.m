@@ -5,7 +5,7 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+display_plots = false;                      % plotting during the run? (false にするとiteration中の表示を行わない)
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
@@ -15,7 +15,7 @@ N = 2000;                                    % number of iterations
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 100;                         % number of grid points in a free space wavelength
+grids_in_lam = 2000;                         % number of grid points in a free space wavelength
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
 % relative permittivity of material region.  uncomment to select
@@ -27,13 +27,13 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = [200, 300];
+gap_nm_values = 0:200:1400;
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = [600, 750];
+gap_gap_nm_values = 300:200:1000;
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/exp_double_channel_gap_gapgap_iter';
+output_folder_name = 'result/double_channel_gap_gapgap_step_200_Jan19';
 
 % -------------------------------------------------------------
 % 2D で結果を保持するために，配列の長さを取得
@@ -285,8 +285,8 @@ for gap_nm = gap_nm_values
         
         % テキスト出力
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-        fname = sprintf('%s/final_acceleration_gradients_gapgap_%d_%s.txt', ...
-            output_folder_name, gap_gap_nm, timestamp);
+        fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', ...
+            output_folder_name, gap_nm, gap_gap_nm, timestamp);
         fileID = fopen(fname, 'w');
         fprintf(fileID, 'G_best (abs): %f\n', G_best_local_final);
         fprintf(fileID, 'G1_best (abs): %f\n', G1_best);
@@ -345,6 +345,7 @@ colorbar();
 xlabel('gap\_gap (nm)');
 ylabel('gap (nm)');
 title('G\_best = abs(g1+g2)');
+saveas(gcf, sprintf('%s/abs_g1_plus_g2_%s.png', output_folder_name, timestamp));
 
 % 2. abs(g1) + abs(g2)
 figure('Name','abs(g1) + abs(g2)');
@@ -354,6 +355,7 @@ colorbar();
 xlabel('gap\_gap (nm)');
 ylabel('gap (nm)');
 title('abs(g1)+abs(g2)');
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_%s.png', output_folder_name, timestamp));
 
 % 3. abs(g1+g2)*gap_nm
 figure('Name','abs(g1+g2)*gap');
@@ -363,6 +365,7 @@ colorbar();
 xlabel('gap\_gap (nm)');
 ylabel('gap (nm)');
 title('abs(g1+g2)*gap');
+saveas(gcf, sprintf('%s/abs_g1_plus_g2_times_gap_%s.png', output_folder_name, timestamp));
 
 % 4. (abs(g1)+abs(g2))*gap_nm
 figure('Name','(abs(g1)+abs(g2))*gap');
@@ -372,6 +375,7 @@ colorbar();
 xlabel('gap\_gap (nm)');
 ylabel('gap (nm)');
 title('(abs(g1)+abs(g2))*gap');
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_times_gap_%s.png', output_folder_name, timestamp));
 
 % 必要に応じて画像保存も可能:
 % saveas(gcf, sprintf('%s/xxxx.png', output_folder_name));
