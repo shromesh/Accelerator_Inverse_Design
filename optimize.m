@@ -5,12 +5,12 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+display_plots = false;                      % plotting during the run? (false にするとiteration中の表示を行わない)
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 3000;                                    % number of iterations
+N = 1300;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -29,8 +29,8 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 100:20:1300;
-gap_nm_values = [200];
+gap_nm_values = 0:20:1300;
+% gap_nm_values = [200];
 
 %% 各 gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
@@ -38,7 +38,7 @@ G_best_times_gap_times2  = [];  % G_best * gap * 2
 Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/exp_grids_in_lam_100_L_shorter';
+output_folder_name = 'result/double_channel_step_20_jan19_grids_100_gapgap300';
 
 %% ループ開始
 for gap_nm = gap_nm_values
