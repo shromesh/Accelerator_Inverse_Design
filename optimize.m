@@ -1,448 +1,394 @@
-addpath(genpath('./'));                     % add the whole directory to path, if not already done
+addpath(genpath('./'));  % add the whole directory to path
 
-%% SET PARAMETERS
-c0 = 1;                                     % speed of light m/s (normalized to 1)
-lambda0 = 2;                                % central wavelength (um)
+%% (A) パラメータ設定
+c0 = 1;                  % (規格化) 光速
+lambda0 = 2;            % 中心波長 (um)
 
-skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+skip = 4;               % 何iterationごとにプロットを更新するか
+display_plots = true;   % iteration中に可視化を行うか
 
-alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
-a = 3;                                      % smooth-max weight factor (see paper)
-beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 3000;                                    % number of iterations
+alpha = 5e2;            % 感度分布に対する誘電率更新のステップサイズ
+a = 3;                  % smooth-max の重み
+beta = 0.5;             % 電子速度 (v) / 光速度 (c0)
+N = 1400;               % 反復回数 (iteration)
 
-in_material = false;                        % evaluate E_max in material? or in surrounding regions.
-starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
+in_material = false;    % E_max を材料内のみで評価するかどうか
+starting = 0;           % 初期の誘電率分布: 0->真空, 1->乱数, 2->中間値(eps/2+0.5)
 
-grids_in_lam = 100;                          % number of grid points in a free space wavelength
-npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
+grids_in_lam = 100;     % 1波長あたり何グリッド置くか
+npml = 10;              % PMLセル数 (端の吸収境界条件)
 
-% relative permittivity of material region.  uncomment to select
-eps = 3.4363^2;     % Si 2um
-%eps = 1.4381^2;    % fused silica 2um
-%eps = 1.9834^2;    % Si3N4
-%eps = 1.9^2;       % GaOx
+% 材料の相対誘電率 eps
+eps = (3.4363)^2;       % 例: Si(2um帯) のn=3.4363程度
+%eps = 1.4381^2;        % fused silica などに切り替え可
+%eps = 1.9834^2;        % Si3N4
+%eps = 1.9^2;           % GaOx
 
-nmax = sqrt(eps);                           % refractive index of material region
+gamma = 0.9;            % モメンタム項 (0〜1で設定)
 
-gamma = 0.9;                                % 'momentum term', see paper. 0-1
+%% -------------------------------
+% ここから「チャネル周りの幾何設定」関連
+% -------------------------------
+%
+% [設定例]
+%   - n_channels 個のチャネル
+%   - 各チャネルに対して gap_nm (nm) の幅
+%   - チャネル間に gap_gap_nm (nm) の幅
+%   - 最適化領域 (L) をチャネル数 + 1 個ブロックとして並べる
+%
+n_channels = 2;         % 例: チャネル数を自由に変更
+gap_nm      = 200;      % 各チャネルの gap 幅 (nm)
+gap_gap_nm  = 300;      % チャネル間ギャップ (nm)  (チャネルが2つ以上の場合に使用)
+L = 0.4;                % 各最適化領域の高さ (um)
 
-%% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 100:20:1300;
-gap_nm_values = [200];
+% [注意] gap_nm_values や n_channels_values のような配列を用いて
+%  複数パラメータをループする場合は，2チャネルコードでやっていたように
+%  for ループを作ってください．ここでは簡単に1つの gap_nm だけを例示します．
+gap_nm_values = [gap_nm];  % 複数試すなら [200, 400, 600, ...] など
 
-%% 各 gap に対する最終的な G_best を格納する配列
-G_best_values            = [];
-G_best_times_gap_times2  = [];  % G_best * gap * 2
-Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
+%% 結果保存用フォルダ名
+output_folder_name = 'result/n_channels_example';
+if ~exist(output_folder_name, 'dir')
+    mkdir(output_folder_name);
+end
 
-%% 出力フォルダ名を設定
-output_folder_name = 'result/exp_grids_in_lam_100_L_shorter';
+%% G_best 等を記録する変数
+G_best_values = [];
 
-%% ループ開始
+%% ----- gap_nm_values などをループする場合の例 -----
 for gap_nm = gap_nm_values
-    %% SET OTHER CONSTANTS (DON'T CHANGE)
-    dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
-    dly = dlx;                                  % spacing in the perpendicular direction
     
-    % gap_nm から grid point に換算
-    gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
+    % グリッドサイズ (dx, dy)
+    dlx = lambda0 / grids_in_lam;
+    dly = dlx;
     
-    % ここでは「2つのギャップ + 中央ギャップ (gap_gap_nm)」のようにしていたコードを
-    % そのまま残していますが，適宜変更してください．
-    gap_gap_nm = 300;                           % 例として固定 (2つのギャップの間のギャップ)
-    gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
+    % gap_nm, gap_gap_nm からグリッド数に変換
+    gap_pts     = floor(gap_nm     /1000/dlx);
+    gap_gap_pts = floor(gap_gap_nm /1000/dlx);
     
-    L = 0.4;                                    % size of optimization region (um)
-    Lpts = round(L/dlx);                        % number of points in the optimization region
+    % 最適化領域1つあたりのグリッド数 (Lpts)
+    Lpts = round(L/dlx);
     
-    pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
-    spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
+    % 2チャネルコードに合わせて設定していたもの
+    pos_src = floor(npml + grids_in_lam/4);  % ソースから左端までの距離
+    spc_pts = floor(grids_in_lam/4);         % ソースから構造までの空き
     
-    Nx = ceil(lambda0*beta/dlx);
-    % 2つのギャップ + 中央 gap_gap_pts + 上下2つの最適化領域 + PML の外の領域 など
-    Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;
+    % ----- 全体の Nx, Ny を定義 -----
+    % x方向は変わらず: Nx = ceil(lambda0*beta/dlx)
+    Nx = ceil(lambda0 * beta / dlx);
     
-    nx = floor(Nx/2);
-    ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
-    ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
+    % y方向 (Ny) は
+    %   - (pos_src + Lpts + spc_pts) というブロックが上下にある (2倍)
+    %   - n_channels 個の gap_pts
+    %   - (n_channels - 1) 個の gap_gap_pts
+    % を足し合わせます (2チャネルの時にやっていた計算の一般化)．
+    Ny = 2*(pos_src + Lpts + spc_pts) ...
+        + n_channels       * gap_pts ...
+        + (n_channels - 1) * gap_gap_pts;
     
-    % First compute G maximization, then do G/E_max maximization (for comparison)
-    % for min_G_Emax = (0:1)
-    for min_G_Emax = 0
+    % 参考用に中心付近の x座標, y座標を取得
+    nx = floor(Nx/2);   % x方向の中央grid
+    % 各チャネルの y座標を後で計算して ny_1, ny_2, ... として格納します
+    
+    %% (B) min_G_Emax = 0 or 1 の2種類を試す (2チャネルコードの名残)
+    %  実際には片方だけでもOK
+    for min_G_Emax = 0  % ここではデモのために0だけ実行
         
-        %% This section defines the input parameters that my FDFD code needs to run.
-        ER  = ones(Nx,Ny);
-        MuR = ones(Nx,Ny);
-        ER_best = ones(Nx,Ny);
-        A_best = 0;
+        % 相対誘電率マップを初期化
+        ER  = ones(Nx, Ny);
+        MuR = ones(Nx, Ny);
         
+        ER_best = ER;   % ベストな構造を記憶するために
+        G_best_local = 0;
+        
+        % TFSF領域 b(x,y) の定義
         b = zeros(Nx,Ny);
-        % define the total field region on the grid
-        b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts + spc_pts) = 1;
-        kinc = [0,1];
-        RES = [dlx,dly];
-        BC = [-1,-1];
-        NPML = [0,0,npml,npml];
-        Pol= 'Hz';
-        spc = spc_pts*dly;
-        gap = gap_pts*dly;
+        b(:, pos_src : pos_src + spc_pts + Lpts + gap_pts*(n_channels) + gap_gap_pts*(n_channels-1) + Lpts + spc_pts) = 1;
         
-        xs = dlx*(1:Nx);
+        kinc = [0, 1];    % y 方向から入射 (2チャネルコードと同じ)
+        RES  = [dlx, dly];
+        BC   = [-1, -1];
+        NPML = [0,0, npml, npml];
+        Pol  = 'Hz';
         
+        % delta_device の定義 (最適化可能領域)
+        %  2チャネル時は「3ブロック」の最適化領域を定義していました．
+        %  一般化では (n_channels + 1) ブロックとし，
+        %  それぞれのブロックの開始/終了 y を順次足していく形で定義します．
         delta_device = zeros(Nx,Ny);
-        delta_device(1:Nx, pos_src + spc_pts : pos_src + spc_pts + Lpts) = 1;
-        delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts) = 1;
-        delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
-        delta_device_vec = delta_device(:);
         
-        % define the eta vector fields for the two channels
-        eta1 = zeros(Nx,Ny);
-        eta1(:,ny1) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
-        eta1_vec = eta1(:);
+        y_start = pos_src + spc_pts;
+        % 各チャネル + 1 の数だけブロックを作成
+        for i_block = 1 : (n_channels + 1)
+            % ブロック i_block の y 範囲
+            y_block_start = y_start;
+            y_block_end   = y_start + Lpts - 1;  % -1 は「含む」形にするため
+            
+            delta_device(:, y_block_start:y_block_end) = 1;
+            
+            % ブロック後に gap を挟む
+            y_start = y_block_end + 1;  % ブロック終わりの次
+            if i_block <= n_channels
+                % gap_pts を足す
+                y_start = y_start + gap_pts;
+                % さらに，チャネルがまだ残っていれば gap_gap_pts を足す
+                if i_block < n_channels
+                    y_start = y_start + gap_gap_pts;
+                end
+            end
+        end
+        delta_device_vec = delta_device(:);  % ベクトル化
         
-        eta2 = zeros(Nx,Ny);
-        eta2(:,ny2) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
-        eta2_vec = eta2(:);
+        %% (C) 各チャネルの eta_k を定義
+        %  2チャネルの時は eta1, eta2 を作っていましたが，
+        %  nチャネルに拡張し，etaList{k} のように配列化します．
         
-        % define stating permittivity
-        for i = (1:Nx)
-            for j = (1:Ny)
-                if (delta_device(i,j) == 1)
-                    if (starting == 1)
-                        ER(i,j) = rand*(eps-1)+1;
-                    elseif (starting == 2)
-                        ER(i,j) = eps/2+0.5;
+        etaList = cell(n_channels, 1);
+        % チャネルの中心 y 座標をあらかじめ計算しておく
+        ny_list = zeros(1, n_channels);
+        
+        y_temp = pos_src + spc_pts;  % 最初のブロックが始まる手前
+        for k_ = 1 : n_channels
+            % ブロック1 (Lpts) 後の gap 範囲中央にチャネルを置く
+            y_temp = y_temp + Lpts;           % 最初のブロックを越える
+            ny_  = floor(y_temp + gap_pts/2); % gap の中央
+            ny_list(k_) = ny_;
+            
+            % 次のチャネルに進むために
+            % gap を足し，もしまだチャネル残りがあるなら gap_gap も足す
+            y_temp = y_temp + gap_pts;
+            if k_ < n_channels
+                y_temp = y_temp + gap_gap_pts;
+            end
+        end
+        
+        % 実際に eta_k(x,y) を作成
+        for k_ = 1 : n_channels
+            eta_k = zeros(Nx, Ny);
+            
+            % y = ny_list(k_) に対して，式:  exp(2*pi*1i * dlx*(0:Nx-1)/lambda0/beta)
+            % を与える (2チャネルコードの eta1, eta2 相当)
+            this_ny = ny_list(k_);
+            eta_k(:, this_ny) = 1/Nx * exp(2*pi*1i * dlx*(0:Nx-1)/lambda0/beta);
+            
+            etaList{k_} = eta_k;  % セル配列に格納
+        end
+        
+        % シミュレーション (全て真空) で基準となる E0 を計算
+        [fields_empty, ~] = FDFD_TFSF(ones(Nx,Ny), MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
+        Ex0 = fields_empty.Ex;
+        Ey0 = fields_empty.Ey;
+        
+        % 真空基準の E0 を，(nx, ny_list(1)) などから取得
+        % (1チャネルコード,2チャネルコードでのやり方と同様)
+        % ここではチャネル1の位置を参考にします (複数チャネルでもOK)
+        ny_ref = ny_list(1);
+        E0 = sqrt(abs(Ex0(nx, ny_ref))^2 + abs(Ey0(nx, ny_ref))^2);
+        
+        % 最適化に向け，初期の ER を設定 (starting に応じて)
+        for ix = 1 : Nx
+            for iy = 1 : Ny
+                if delta_device(ix, iy) == 1
+                    if starting == 1
+                        ER(ix, iy) = rand*(eps - 1) + 1;
+                    elseif starting == 2
+                        ER(ix, iy) = eps/2 + 0.5;
                     else
-                        % starting=0 -> vacuum
+                        % 0 -> vacuumのまま(=1)
                     end
                 end
             end
         end
         
-        % run the simulation with accelerator input (plane wave) but all empty space
-        [fields, ~] = FDFD_TFSF(ones(Nx,Ny),MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-        
-        % get the fields and the E0 (normalization)
-        Ex = fields.Ex;
-        Ey = fields.Ey;
-        E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
-        
-        % define variables to store the iteration progress
-        G_best_local = 0;          % best gradient in this run
-        Gs = zeros(N,1);
+        % iteration記録用
+        Gs     = zeros(N,1);
         E_maxs = zeros(N,1);
-        % G_by_Es = zeros(N,1);
-        % G_by_Sa = zeros(N,1);
+        phis   = zeros(N,1);
+        AVM_prev = zeros(Nx, Ny);
         
-        phis = zeros(N,1);
-        phi = 0;
-        AVM_prev = zeros(Nx,Ny);
-        
-        %---- 変更点3: display_plots が false なら iteration中のウィンドウ表示は行わない
         if display_plots
-            figure(1);  % open a figure to plot
+            figure('Name', sprintf('n-channels = %d, gap = %d nm', n_channels, gap_nm));
         end
         
-        if ~min_G_Emax
-            display('working on gradient maximized structure');
-        else
-            display('working on acceleration factor maximized structure');
-        end
-        upd = textprogressbar(N);
+        disp(['Start optimization for n_channels=', num2str(n_channels), ...
+            ', min_G_Emax=', num2str(min_G_Emax)]);
+        upd = textprogressbar(N);  % プログレスバー
         
-        for j = (1:N)
+        %% (D) メインの反復ループ
+        for iter = 1 : N
+            upd(iter);
             
-            upd(j);
-            % original simulation
-            [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-            Ex = fields.Ex/E0;
-            Ey = fields.Ey/E0;
+            % 構造ありでFDFD_TFSF
+            [fields, extra] = FDFD_TFSF(ER, MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
+            Ex = fields.Ex / E0;
+            Ey = fields.Ey / E0;
             
-            % compute gradients
-            g1 = sum(sum(eta1.*Ex));
-            G1 = real(g1);
-            g2 = sum(sum(eta2.*Ex));
-            G2 = real(g2);
-            g = g1 + g2;
-            G = real(g);
+            % チャネルごとの g_k を計算し，合計 g を得る
+            g_sum = 0;
+            for k_ = 1 : n_channels
+                g_k = sum(sum( etaList{k_} .* Ex ));
+                g_sum = g_sum + g_k;
+            end
+            G = real(g_sum);
             
-            % get phase
-            phis(j) = angle(g);
+            % フェーズ (参考)
+            phis(iter) = angle(g_sum);
             
-            % get numerical spatial derivative operators
+            % 数値微分演算子
             DEY = extra.derivatives.DEY;
             DEX = extra.derivatives.DEX;
             
+            % ER_vec
             ER_vec = ER(:);
-            chi = delta_device.*(ER - ones(Nx,Ny));
+            chi = delta_device .* (ER - 1);
             
-            Ox = -1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEY;
-            Oy =  1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEX;
+            Ox = -1i * lambda0 /(2*pi*c0) * spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny) * DEY;
+            Oy =  1i * lambda0 /(2*pi*c0) * spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny) * DEX;
             
-            eta1_aj = [eta1_vec; zeros(Nx*Ny,1)];
-            eta2_aj = [eta2_vec; zeros(Nx*Ny,1)];
-            
-            % E_max は in_material を考慮
-            if (in_material)
-                E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
+            % E_max 用の E_abs
+            if in_material
+                E_abs = (chi/(eps-1)) .* sqrt( abs(Ex).^2 + abs(Ey).^2 );
             else
-                E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
+                E_abs = delta_device .* sqrt( abs(Ex).^2 + abs(Ey).^2 );
+            end
+            E_max_val = max(E_abs(:));
+            E_maxs(iter) = E_max_val;
+            
+            % min_G_Emax による b_aj 分岐 (2チャネルコード参照)
+            % ここでは簡単化して「Gのみ最大化」を例示 (min_G_Emax = 0)
+            % 実際は G/E_max や G/Sa を組み込むなどの拡張が可能
+            b_aj_x = zeros(Nx*Ny,1);
+            b_aj_y = zeros(Nx*Ny,1);
+            
+            % 例: b_aj = - sum_k eta_k_aj (min_G_Emax=0の場合)
+            for k_ = 1 : n_channels
+                eta_k_vec = etaList{k_}(:);
+                eta_k_aj  = [eta_k_vec; zeros(Nx*Ny,1)];
+                b_aj_xk   = eta_k_aj(1:Nx*Ny);
+                b_aj_yk   = eta_k_aj(Nx*Ny+1:end);
+                
+                b_aj_x = b_aj_x - b_aj_xk;
+                b_aj_y = b_aj_y - b_aj_yk;
             end
             
-            x_abs = E_abs(:);
-            alpha_vec = exp(x_abs*a); % a=3
-            alpha_T_1 = sum(alpha_vec);
-            Sa = sum(alpha_vec.*x_abs)/alpha_T_1;
+            % adjointソース b_aj を Ox, Oy で作用させて2次元にreshape
+            b_aj_2d = reshape(Ox*b_aj_x + Oy*b_aj_y, [Nx, Ny]);
+            b_aj_2d(isnan(b_aj_2d)) = 0;
             
-            % x = [Ex(:); Ey(:)];
-            % z = conj(x./[x_abs;x_abs]);
-            % z(isnan(z)) = 0;
-            % z(isinf(z)) = 0;
-            % spdiagz = spdiags(z,0,Nx*Ny*2,Nx*Ny*2);
-            % P = [speye(Nx*Ny) speye(Nx*Ny)];
+            % adjointシミュレーション
+            AF = extra.AF;  % システム行列の factor
+            [fields_aj, ~] = FDFD_fast(ER, MuR, RES, NPML, BC, lambda0, Pol, b_aj_2d, AF);
             
-            % S = real(1/alpha_T_1*(speye(Nx*Ny) + a*spdiags(x_abs,0,Nx*Ny,Nx*Ny) - a*sum(alpha_vec.*x_abs)/alpha_T_1*speye(Nx*Ny)));
-            % sigma = transpose(alpha_vec)*S*(P*spdiagz);
-            % sigma(isnan(sigma)) = 0;
+            x_aj = fields_aj.x / E0;
+            Ex_aj = reshape(x_aj(1:Nx*Ny), [Nx, Ny]);
+            Ey_aj = reshape(x_aj(Nx*Ny+1:end), [Nx, Ny]);
             
-            % b_aj1 = transpose(G/Sa^2 * sigma);
-            % b_aj2 = -eta1_aj/Sa - eta2_aj/Sa;
+            % 感度分布 AVM
+            AVM = -real( (Ex.*Ex_aj + Ey.*Ey_aj) .* delta_device );
             
-            % display(Sa);
-            
-            if (min_G_Emax)
-                % b_aj = b_aj1 + b_aj2;
-            else
-                % b_aj = -eta1_aj/Sa - eta2_aj/Sa;
-                b_aj = -eta1_aj - eta2_aj;
-            end
-            b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
-            b_aj(isnan(b_aj)) = 0 ;
-            
-            AF = extra.AF;
-            [fields_aj, ~] = FDFD_fast(ER,MuR,RES,NPML,BC,lambda0,Pol,b_aj,AF);
-            
-            x_aj = fields_aj.x/E0;
-            Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
-            Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
-            
-            AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
-            
-            % record relevant variables
-            E_max = max(max(E_abs));
-            E_maxs(j) = E_max;
-            Gs(j) = G;
-            % G_by_Es(j) = G/E_max;
-            % G_by_Sa(j) = G/Sa;
-            
-            % update permittivity
+            % 誘電率の更新 + モメンタム項
             ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
             AVM_prev = AVM;
             
-            ER(ER < 1) = 1;
-            ER(ER > eps) = eps;
+            % 上限下限クリップ
+            ER(ER < 1)  = 1;
+            ER(ER > eps)= eps;
             
-            if (G > G_best_local)
-                G_best_local = G;
+            % ベスト更新
+            if abs(g_sum) > G_best_local  % absを取るかrealを取るかは好みに応じる
+                G_best_local = abs(g_sum);
                 ER_best = ER;
             end
             
-            %---- 変更点3: plotting during iteration は display_plots が true の時だけ
-            if display_plots && mod(j,skip) == 0
+            % 適宜可視化
+            if display_plots && mod(iter, skip) == 0
                 clf;
                 subplot(2,2,1);
-                disp_map = [];
-                for k_ = (1:5)
-                    disp_map = [disp_map; real(ER)];
-                end
-                imagesc(disp_map,[1,eps])
-                colormap(flipud(gray))
-                title('relative permittivity')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                colorbar()
+                imagesc(repmat( real(ER), 5, 1 ), [1, eps]);  % 縦方向に5回複写して見やすく
+                colormap(flipud(gray));
+                colorbar(); axis image;
+                title('relative permittivity');
                 
                 subplot(2,2,2);
-                plot(Gs(1:j),'k');
-                xlabel('iteration number')
-                ylabel('power (G)')
-                title('acceleration gradient at \phi = 0')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                colorbar()
+                plot(Gs(1:iter),'k');
+                hold on; plot(iter, G, 'ro');
+                xlabel('iteration'); ylabel('G');
+                title('Acceleration Gradient');
+                grid on;
                 
-                subplot(2,2,3); hold all;
-                plot((1:j),phis(1:j));
-                plot((1:j),zeros(j,1));
-                xlabel('iteration number');
-                ylabel('\phi');
-                legend({'computed','\phi=0 (target)'})
-                title('acceleration phase (\phi)')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                pause(0.001);
+                subplot(2,2,3);
+                plot(E_maxs(1:iter),'b');
+                hold on; plot(iter, E_max_val, 'ro');
+                xlabel('iteration'); ylabel('E_{max}');
+                title('Max Electric Field');
+                grid on;
+                
+                subplot(2,2,4);
+                plot(phis(1:iter),'k'); hold on;
+                plot(iter, phis(iter),'ro');
+                xlabel('iteration'); ylabel('\phi');
+                title('acceleration phase');
+                grid on;
+                
+                drawnow;
             end
+            Gs(iter) = G;
         end
         
-        %% POST PROCESSING STUFF
-        
-        % force binary
+        %% (E) 最終構造のバイナリ化や後処理
         eps_avg = (eps+1)/2;
-        ER(ER<eps_avg) = 1;
-        ER(ER>=eps_avg) = eps;
-        ER_best(ER_best<eps_avg) = 1;
-        ER_best(ER_best>=eps_avg) = eps;
+        ER_best(ER_best < eps_avg) = 1;
+        ER_best(ER_best >= eps_avg) = eps;
         
-        % do another simulation of the binary distribution for ER_best
-        [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-        Ex_best = fields_best.Ex/E0;
-        Ey_best = fields_best.Ey/E0;
+        [fields_best, ~] = FDFD_TFSF(ER_best, MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
+        Ex_best = fields_best.Ex / E0;
+        Ey_best = fields_best.Ey / E0;
         
-        % calculate g1_best and g2_best after the loop
-        g1_best = sum(sum(eta1.*Ex_best));
-        g2_best = sum(sum(eta2.*Ex_best));
+        % チャネル全体での加速勾配 g_best を計算
+        g_sum_best = 0;
+        for k_ = 1 : n_channels
+            g_k_best = sum(sum( etaList{k_} .* Ex_best ));
+            g_sum_best = g_sum_best + g_k_best;
+        end
+        G_best_local_abs = abs(g_sum_best);
         
-        G1_best = real(g1_best);
-        G2_best = real(g2_best);
+        % E_max
+        E_abs_best = delta_device .* sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+        E_max_best = max(E_abs_best(:));
         
-        g_best = g1_best + g2_best;
-        % 最終的に abs で取るかは元のコードの通り
-        G_best_local = abs(g_best);
+        % 保存用
+        G_best_values = [G_best_values; G_best_local_abs];
         
-        % E_max の計算
-        E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
-        E_max = max(E_abs(:));
-        
-        % 結果を保存
+        % 結果をテキスト出力
         timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-        fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s.txt', output_folder_name, gap_nm, timestamp);
-        fileID = fopen(fname, 'w');
-        fprintf(fileID, 'G_best (abs): %f\n', G_best_local);
-        fprintf(fileID, 'G1_best: %f\n', G1_best);
-        fprintf(fileID, 'G2_best: %f\n', G2_best);
-        fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
-        fprintf(fileID, 'g1_best: %f + %fi\n', real(g1_best), imag(g1_best));
-        fprintf(fileID, 'g2_best: %f + %fi\n', real(g2_best), imag(g2_best));
-        fprintf(fileID, 'E_max: %f\n', E_max);
-        fprintf(fileID, 'nx: %d\n', nx);
-        fprintf(fileID, 'ny1: %d\n', ny1);
-        fprintf(fileID, 'ny2: %d\n', ny2);
-        fclose(fileID);
-        fprintf('File saved as: %s\n', fname);
+        fname = sprintf('%s/final_gap_%d_nm_nch_%d_%s.txt', ...
+            output_folder_name, gap_nm, n_channels, timestamp);
+        fid = fopen(fname, 'w');
+        fprintf(fid, 'G_best (abs) = %f\n', G_best_local_abs);
+        fprintf(fid, 'E_max = %f\n', E_max_best);
+        fprintf(fid, 'Nx = %d, Ny = %d\n', Nx, Ny);
+        fprintf(fid, 'n_channels = %d\n', n_channels);
+        fclose(fid);
+        fprintf('File saved: %s\n', fname);
         
-        % best structure の可視化・保存
+        % ベスト構造の可視化
         if display_plots
-            bestFig = figure('Name','Best Structure','Visible','on');
+            figure('Name','Best Structure','Visible','on');
         else
-            bestFig = figure('Name','Best Structure','Visible','off');
+            figure('Name','Best Structure','Visible','off');
         end
-        
-        disp_best = [];
-        for k_ = 1:5
-            disp_best = [disp_best; real(ER_best)];
-        end
-        imagesc(disp_best, [1, eps]);
-        colormap(flipud(gray));
-        axis equal tight;
-        title(sprintf('Best Structure (gap = %d nm)', gap_nm));
-        colorbar();
-        
-        figNameBest = sprintf('%s/best_structure_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
-        saveas(bestFig, figNameBest);
-        
-        %---- ここで今回の gap に対する G_best_local, G1_best, G2_best を append
-        G_best_values           = [G_best_values; G_best_local];
-        % 2チャネル分 => G_best * gap_nm * 2
-        G_best_times_gap_times2 = [G_best_times_gap_times2; G_best_local * gap_nm * 2];
-        % (G1_best + G2_best)*gap_nm
-        Gsum_times_gap_values   = [Gsum_times_gap_values; (G1_best + G2_best)*gap_nm];
-        
-        % x座標（um）の配列を準備
-        xvals = (0:Nx-1)*dlx;  % 例として 0 から (Nx-1)*dlx まで
-        
-        % --------- Channel 1 の Ex, eta プロットを1次元に変更 ---------
-        fig1 = figure('Name', 'Ex and eta for Channel 1', 'Visible', 'on');
-        subplot(2,1,1);
-        plot(xvals, real(Ex_best(:, ny1)), 'LineWidth', 1);
-        hold on;
-        plot(xvals, imag(Ex_best(:, ny1)), 'LineWidth', 1);
-        xlabel('x [\mum]');
-        ylabel('Ex');
-        title(sprintf('Ex at y = ny1 = %d (Channel 1)', ny1));
-        legend({'Re\{Ex\}', 'Im\{Ex\}'});
-        grid on;
-        
-        subplot(2,1,2);
-        plot(xvals, real(eta1(:, ny1)), 'LineWidth', 1);
-        hold on;
-        plot(xvals, imag(eta1(:, ny1)), 'LineWidth', 1);
-        xlabel('x [\mum]');
-        ylabel('eta1');
-        title(sprintf('eta1 at y = ny1 = %d (Channel 1)', ny1));
-        legend({'Re\{eta1\}', 'Im\{eta1\}'});
-        grid on;
-        
-        % 図を保存
-        figNameExEta1 = sprintf('%s/Ex_eta_Channel1_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
-        saveas(fig1, figNameExEta1);
-        
-        % --------- Channel 2 の Ex, eta プロットを1次元に変更 ---------
-        fig2 = figure('Name', 'Ex and eta for Channel 2', 'Visible', 'on');
-        subplot(2,1,1);
-        plot(xvals, real(Ex_best(:, ny2)), 'LineWidth', 1);
-        hold on;
-        plot(xvals, imag(Ex_best(:, ny2)), 'LineWidth', 1);
-        xlabel('x [\mum]');
-        ylabel('Ex');
-        title(sprintf('Ex at y = ny2 = %d (Channel 2)', ny2));
-        legend({'Re\{Ex\}', 'Im\{Ex\}'});
-        grid on;
-        
-        subplot(2,1,2);
-        plot(xvals, real(eta2(:, ny2)), 'LineWidth', 1);
-        hold on;
-        plot(xvals, imag(eta2(:, ny2)), 'LineWidth', 1);
-        xlabel('x [\mum]');
-        ylabel('eta2');
-        title(sprintf('eta2 at y = ny2 = %d (Channel 2)', ny2));
-        legend({'Re\{eta2\}', 'Im\{eta2\}'});
-        grid on;
-        
-        % 図を保存
-        figNameExEta2 = sprintf('%s/Ex_eta_Channel2_gap_%d_%s.png', output_folder_name, gap_nm, timestamp);
-        saveas(fig2, figNameExEta2);
-    end % end of min_G_Emax loop
-    
-end % end of gap_nm loop
+        imagesc(repmat(real(ER_best),5,1), [1, eps]);
+        colormap(flipud(gray)); axis image; colorbar();
+        title(sprintf('Best Structure (n_channels=%d, gap=%d nm)', n_channels, gap_nm));
+        figNameBest = sprintf('%s/Best_nch_%d_gap_%d_nm_%s.png', ...
+            output_folder_name, n_channels, gap_nm, timestamp);
+        saveas(gcf, figNameBest);
+    end
+end
 
-
-%% gap を x軸として，以下の3種をプロット
-% (a) G_best vs gap
-figure;
-plot(gap_nm_values, G_best_values, '-o');
-xlabel('gap (nm)');
-ylabel('G\_best');
-title('G\_best vs. gap (2-channel)');
-grid on;
-saveas(gcf, sprintf('%s/G_best_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
-
-% (b) G_best * gap * 2 vs gap
-figure;
-plot(gap_nm_values, G_best_times_gap_times2, '-o');
-xlabel('gap (nm)');
-ylabel('G\_best * gap * 2');
-title('G\_best * gap * 2 vs. gap (2-channel)');
-grid on;
-saveas(gcf, sprintf('%s/G_best_times_gap_times2_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
-
-% (c) (G1_best + G2_best) * gap vs gap
-figure;
-plot(gap_nm_values, Gsum_times_gap_values, '-o');
-xlabel('gap (nm)');
-ylabel('(G1\_best + G2\_best) * gap');
-title('(G1\_best + G2\_best) * gap vs. gap (2-channel)');
-grid on;
-saveas(gcf, sprintf('%s/Gsum_times_gap_vs_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
-
+%% (F) gap_nm_values を変えた場合などのプロット例
+figure; plot(gap_nm_values, G_best_values, '-o');
+xlabel('gap (nm)'); ylabel('G\_best'); grid on;
+title(sprintf('n=%d channels: G\\_best vs gap', n_channels));
+saveas(gcf, sprintf('%s/G_best_vs_gap_nch%d_%s.png', ...
+    output_folder_name, n_channels, datestr(now,'yyyy-mm-dd_HHMMSS')));

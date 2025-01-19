@@ -1,0 +1,4 @@
+G_best (abs) = 0.695518
+E_max = 3.892089
+Nx = 50, Ny = 195
+n_channels = 2
