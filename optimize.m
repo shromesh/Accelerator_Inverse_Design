@@ -5,16 +5,17 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = false;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+display_plots = true;                      % plotting during the run? (false にするとiteration中の表示を行わない)
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 800;                                    % number of iterations
+N = 4000;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
+% grids_in_lam = 100;                          % number of grid points in a free space wavelength
 grids_in_lam = 50;                          % number of grid points in a free space wavelength
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
@@ -24,15 +25,17 @@ eps = 3.4363^2;     % Si 2um
 %eps = 1.9834^2;    % Si3N4
 %eps = 1.9^2;       % GaOx
 
-nmax = sqrt(eps);                           % refractive index of material region
+% nmax = sqrt(eps);                           % refractive index of material region
 
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm = 400;
+gap_nm = 200;
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 100:100:800;
+% gap_gap_nm_values = 100:100:800;
+gap_gap_nm_values = [900];
+% gap_gap_nm_values = [725, 775];
 
 %% 各 gap_gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
@@ -40,7 +43,7 @@ G_best_times_gap_times2  = [];  % G_best * gap * 2
 Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/2_channel_step_10_jan13';
+output_folder_name = 'result/double_channel_gapgapiter_jan19';
 
 %% ループ開始
 for gap_gap_nm = gap_gap_nm_values
@@ -54,7 +57,7 @@ for gap_gap_nm = gap_gap_nm_values
     % gap_gap_nm から grid point に換算
     gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
     
-    L = 1.0;                                    % size of optimization region (um)
+    L = 0.4;                                    % size of optimization region (um)
     Lpts = round(L/dlx);                        % number of points in the optimization region
     
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -214,7 +217,8 @@ for gap_gap_nm = gap_gap_nm_values
             if (min_G_Emax)
                 b_aj = b_aj1 + b_aj2;
             else
-                b_aj = b_aj2;
+                % b_aj = b_aj2;
+                b_aj = -eta1_aj - eta2_aj;
             end
             b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
             b_aj(isnan(b_aj)) = 0 ;
@@ -271,18 +275,7 @@ for gap_gap_nm = gap_gap_nm_values
                 set(gca,'FontSize',22,'fontWeight','normal')
                 colorbar()
                 
-                subplot(2,2,3);
-                plot((1:j),G_by_Es(1:j));
-                hold all;
-                plot((1:j),G_by_Sa(1:j));
-                xlabel('iteration number')
-                ylabel('G/|E|max')
-                title('acceleration factor')
-                legend({'actual','smooth-max'})
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                
-                subplot(2,2,4); hold all;
+                subplot(2,2,3); hold all;
                 plot((1:j),phis(1:j));
                 plot((1:j),zeros(j,1));
                 xlabel('iteration number');
@@ -291,7 +284,6 @@ for gap_gap_nm = gap_gap_nm_values
                 title('acceleration phase (\phi)')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
-                
                 pause(0.001);
             end
         end
