@@ -10,12 +10,12 @@ display_plots = true;                      % plotting during the run? (false に
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 800;                                    % number of iterations
+N = 3000;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 50;                          % number of grid points in a free space wavelength
+grids_in_lam = 100;                          % number of grid points in a free space wavelength
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
 % relative permittivity of material region.  uncomment to select
@@ -29,7 +29,7 @@ nmax = sqrt(eps);                           % refractive index of material regio
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 100:10:1300;
+% gap_nm_values = 100:20:1300;
 gap_nm_values = [200];
 
 %% 各 gap に対する最終的な G_best を格納する配列
@@ -38,7 +38,7 @@ G_best_times_gap_times2  = [];  % G_best * gap * 2
 Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/plot_ex_and_eta_gap200_gapgap300_iter800';
+output_folder_name = 'result/exp_grids_in_lam_100_L_shorter';
 
 %% ループ開始
 for gap_nm = gap_nm_values
@@ -54,7 +54,7 @@ for gap_nm = gap_nm_values
     gap_gap_nm = 300;                           % 例として固定 (2つのギャップの間のギャップ)
     gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
     
-    L = 1.0;                                    % size of optimization region (um)
+    L = 0.4;                                    % size of optimization region (um)
     Lpts = round(L/dlx);                        % number of points in the optimization region
     
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -215,10 +215,8 @@ for gap_nm = gap_nm_values
             if (min_G_Emax)
                 % b_aj = b_aj1 + b_aj2;
             else
-                % b_aj = b_aj2;
-                b_aj = -eta1_aj/Sa - eta2_aj/Sa;
-                % b_aj = -eta1_aj - eta2_aj;
-                % b_aj = -eta1_aj;
+                % b_aj = -eta1_aj/Sa - eta2_aj/Sa;
+                b_aj = -eta1_aj - eta2_aj;
             end
             b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
             b_aj(isnan(b_aj)) = 0 ;
