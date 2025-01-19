@@ -10,13 +10,13 @@ display_plots = true;                      % plotting during the run? (false に
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 4000;                                    % number of iterations
+N = 500;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-% grids_in_lam = 100;                          % number of grid points in a free space wavelength
-grids_in_lam = 50;                          % number of grid points in a free space wavelength
+grids_in_lam = 100;                       % number of grid points in a free space wavelength
+% grids_in_lam = 50;                          % number of grid points in a free space wavelength
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
 % relative permittivity of material region.  uncomment to select
@@ -25,55 +25,51 @@ eps = 3.4363^2;     % Si 2um
 %eps = 1.9834^2;    % Si3N4
 %eps = 1.9^2;       % GaOx
 
-% nmax = sqrt(eps);                           % refractive index of material region
-
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm = 200;
+gap_nm_values = [200, 300];
 
 %% gap_gap を変化させるための配列
 % gap_gap_nm_values = 100:100:800;
-gap_gap_nm_values = [900];
+gap_gap_nm_values = [600, 750];
 % gap_gap_nm_values = [725, 775];
 
 %% 各 gap_gap に対する最終的な G_best を格納する配列
 G_best_values            = [];
-G_best_times_gap_times2  = [];  % G_best * gap * 2
-Gsum_times_gap_values    = [];  % (G1_best + G2_best)*gap
+G_best_abs_sums          = [];  % abs(g1)+abs(g2)
+G_best_values_times_gap  = [];  % abs(g1+g2) * gap_nm
+G_best_abs_sums_times_gap = []; % (abs(g1)+abs(g2)) * gap_nm
 
 %% 出力フォルダ名を設定
 output_folder_name = 'result/double_channel_gapgapiter_jan19';
 
 %% ループ開始
-for gap_gap_nm = gap_gap_nm_values
-    %% SET OTHER CONSTANTS (DON'T CHANGE)
-    dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
-    dly = dlx;                                  % spacing in the perpendicular direction
-    
-    % gap_nm から grid point に換算
-    gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
-    
-    % gap_gap_nm から grid point に換算
-    gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
-    
-    L = 0.4;                                    % size of optimization region (um)
-    Lpts = round(L/dlx);                        % number of points in the optimization region
-    
-    pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
-    spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
-    
-    Nx = ceil(lambda0*beta/dlx);
-    % 2つのギャップ + 中央 gap_gap_pts + 上下2つの最適化領域 + PML の外の領域 など
-    Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;
-    
-    nx = floor(Nx/2);
-    ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
-    ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
-    
-    % First compute G maximization, then do G/E_max maximization (for comparison)
-    % for min_G_Emax = (0:1)
-    for min_G_Emax = 0
+for gap_nm = gap_nm_values
+    for gap_gap_nm = gap_gap_nm_values
+        %% SET OTHER CONSTANTS (DON'T CHANGE)
+        dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
+        dly = dlx;                                  % spacing in the perpendicular direction
+        
+        % gap_nm から grid point に換算
+        gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
+        
+        % gap_gap_nm から grid point に換算
+        gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
+        
+        L = 0.4;                                    % size of optimization region (um)
+        Lpts = round(L/dlx);                        % number of points in the optimization region
+        
+        pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
+        spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
+        
+        Nx = ceil(lambda0*beta/dlx);
+        % 2つのギャップ + 中央 gap_gap_pts + 上下2つの最適化領域 + PML の外の領域 など
+        Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;
+        
+        nx = floor(Nx/2);
+        ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
+        ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
         
         %% This section defines the input parameters that my FDFD code needs to run.
         ER  = ones(Nx,Ny);
@@ -109,7 +105,7 @@ for gap_gap_nm = gap_gap_nm_values
         eta2(:,ny2) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
         eta2_vec = eta2(:);
         
-        % define stating permittivity
+        % define starting permittivity
         for i = (1:Nx)
             for j = (1:Ny)
                 if (delta_device(i,j) == 1)
@@ -143,16 +139,12 @@ for gap_gap_nm = gap_gap_nm_values
         phi = 0;
         AVM_prev = zeros(Nx,Ny);
         
-        %---- 変更点3: display_plots が false なら iteration中のウィンドウ表示は行わない
+        %---- 変更点: display_plots が false なら iteration中のウィンドウ表示は行わない
         if display_plots
             figure(1);  % open a figure to plot
         end
         
-        if ~min_G_Emax
-            display('working on gradient maximized structure');
-        else
-            display('working on acceleration factor maximized structure');
-        end
+        display('working on gradient maximized structure');
         upd = textprogressbar(N);
         
         for j = (1:N)
@@ -214,12 +206,8 @@ for gap_gap_nm = gap_gap_nm_values
             b_aj1 = transpose(G/Sa^2 * sigma);
             b_aj2 = -eta1_aj/Sa - eta2_aj/Sa;
             
-            if (min_G_Emax)
-                b_aj = b_aj1 + b_aj2;
-            else
-                % b_aj = b_aj2;
-                b_aj = -eta1_aj - eta2_aj;
-            end
+            % b_aj = b_aj2;
+            b_aj = -eta1_aj - eta2_aj;
             b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
             b_aj(isnan(b_aj)) = 0 ;
             
@@ -351,43 +339,53 @@ for gap_gap_nm = gap_gap_nm_values
         figNameBest = sprintf('%s/best_structure_gap_gap_%d_%s.png', output_folder_name, gap_gap_nm, timestamp);
         saveas(bestFig, figNameBest);
         
-        %---- ここで今回の gap に対する G_best_local, G1_best, G2_best を記録
-        G_best_values           = [G_best_values; G_best_local];
-        % 2チャネル分 => G_best * gap_nm * 2
-        G_best_times_gap_times2 = [G_best_times_gap_times2; G_best_local * gap_nm * 2];
-        % (G1_best + G2_best)*gap_nm
-        Gsum_times_gap_values   = [Gsum_times_gap_values; (G1_best + G2_best)*gap_nm];
+        G_best_values            = [G_best_values; G_best_local];
+        G_best_abs_sums          = [G_best_abs_sums; abs(g1_best) + abs(g2_best)];
+        G_best_values_times_gap  = [G_best_values_times_gap; G_best_local * gap_nm];
+        G_best_abs_sums_times_gap = [G_best_abs_sums_times_gap; (abs(g1_best) + abs(g2_best)) * gap_nm];
         
-    end % end of min_G_Emax loop
+    end % end of gap_gap_nm loop
     
-end % end of gap_gap_nm loop
+end % end of gap_nm loop
 
-
-%% gap を x軸として，以下の3種をプロット
-% (a) G_best vs gap
+% (新) 新しい配列をプロット (例)
+% ==============================================================
+% (a) abs(g1+g2) = G_best vs gap_gap_nm_values
 figure;
 plot(gap_gap_nm_values, G_best_values, '-o');
 xlabel('gap\_gap (nm)');
-ylabel('G\_best');
-title('G\_best vs. gap\_gap (2-channel)');
+ylabel('abs(g1+g2)');
+title('G\_best (abs(g1+g2)) vs. gap\_gap');
 grid on;
-saveas(gcf, sprintf('%s/G_best_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/G_best_vs_gap_gap_%s.png', ...
+    output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
-% (b) G_best * gap * 2 vs gap_gap
+% (b) abs(g1)+abs(g2) vs gap_gap_nm_values
 figure;
-plot(gap_gap_nm_values, G_best_times_gap_times2, '-o');
+plot(gap_gap_nm_values, G_best_abs_sums, '-o');
 xlabel('gap\_gap (nm)');
-ylabel('G\_best * gap * 2');
-title('G\_best * gap * 2 vs. gap\_gap (2-channel)');
+ylabel('abs(g1)+abs(g2)');
+title('abs(g1)+abs(g2) vs. gap\_gap');
 grid on;
-saveas(gcf, sprintf('%s/G_best_times_gap_times2_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/G_best_abs_sums_vs_gap_gap_%s.png', ...
+    output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
-% (c) (G1_best + G2_best) * gap vs gap_gap
+% (c) abs(g1+g2)*gap_nm vs gap_gap_nm_values
 figure;
-plot(gap_gap_nm_values, Gsum_times_gap_values, '-o');
+plot(gap_gap_nm_values, G_best_values_times_gap, '-o');
 xlabel('gap\_gap (nm)');
-ylabel('(G1\_best + G2\_best) * gap');
-title('(G1\_best + G2\_best) * gap vs. gap\_gap (2-channel)');
+ylabel('abs(g1+g2)*gap');
+title('abs(g1+g2)*gap vs. gap\_gap');
 grid on;
-saveas(gcf, sprintf('%s/Gsum_times_gap_vs_gap_gap_multi_channel_%s.png', output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
+saveas(gcf, sprintf('%s/G_best_values_times_gap_vs_gap_gap_%s.png', ...
+    output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
 
+% (d) (abs(g1)+abs(g2))*gap_nm vs gap_gap_nm_values
+figure;
+plot(gap_gap_nm_values, G_best_abs_sums_times_gap, '-o');
+xlabel('gap\_gap (nm)');
+ylabel('(abs(g1)+abs(g2))*gap');
+title('(abs(g1)+abs(g2))*gap vs. gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/G_best_abs_sums_times_gap_vs_gap_gap_%s.png', ...
+    output_folder_name, datestr(now,'yyyy-mm-dd_HHMMSS')));
