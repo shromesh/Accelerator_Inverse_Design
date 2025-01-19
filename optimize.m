@@ -27,7 +27,7 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 0:200:1400;
+gap_nm_values = 200:200:1000;
 
 %% gap_gap を変化させるための配列
 gap_gap_nm_values = 300:200:1000;
