@@ -15,7 +15,7 @@ N = 2000;                                    % number of iterations
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 2000;                         % number of grid points in a free space wavelength
+grids_in_lam = 100;                         % number of grid points in a free space wavelength
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
 % relative permittivity of material region.  uncomment to select
