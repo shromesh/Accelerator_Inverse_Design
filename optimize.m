@@ -379,7 +379,7 @@ for gap_nm = gap_nm_values
         end
         imagesc(repmat(real(ER_best),5,1), [1, eps]);
         colormap(flipud(gray)); axis image; colorbar();
-        title(sprintf('Best Structure (n_channels=%d, gap=%d nm)', n_channels, gap_nm));
+        title(sprintf('Best Structure (n\_channels=%d, gap=%d nm)', n_channels, gap_nm));
         figNameBest = sprintf('%s/Best_nch_%d_gap_%d_nm_%s.png', ...
             output_folder_name, n_channels, gap_nm, timestamp);
         saveas(gcf, figNameBest);
