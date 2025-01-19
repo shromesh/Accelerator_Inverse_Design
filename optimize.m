@@ -10,7 +10,7 @@ display_plots = false;                      % plotting during the run? (false �
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 2000;                                    % number of iterations
+N = 500;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -27,10 +27,12 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 200:200:1000;
+% gap_nm_values = 200:200:1000;
+gap_nm_values = [200, 300];
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 300:200:1000;
+% gap_gap_nm_values = 300:200:1000;
+gap_gap_nm_values = [300, 400];
 
 %% 出力フォルダ名を設定
 output_folder_name = 'result/double_channel_gap_gapgap_step_200_Jan19';
@@ -377,5 +379,45 @@ ylabel('gap (nm)');
 title('(abs(g1)+abs(g2))*gap');
 saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_times_gap_%s.png', output_folder_name, timestamp));
 
-% 必要に応じて画像保存も可能:
-% saveas(gcf, sprintf('%s/xxxx.png', output_folder_name));
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) gap_gapをlegendとして、gap vs G=abs(g1)+abs(g2)を1次元プロット
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure('Name','gap vs abs(g1)+abs(g2) for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    plot(gap_nm_values, G_best_abs_sums_2D(:, jGapGap), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');  % 凡例を表示
+xlabel('Gap size (nm)');
+ylabel('abs(g1)+abs(g2)');
+title('abs(g1)+abs(g2) vs gap for each gap\_gap');
+grid on;
+
+% 結果を保存（例: PNG 形式）
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_vs_gap_for_each_gapgap_%s.png', ...
+    output_folder_name, timestamp));
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) 各 gap で最大となる (abs(g1)+abs(g2)) を抽出して1次元プロット
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% -- 各gapについて、gap_gapを変化させた中で最もG = abs(g1)+abs(g2)が大きい値を取り出す
+%    G_best_abs_sums_2D(iGap, jGapGap) = (|g1| + |g2|) の2次元配列
+[G_abs_sums_best_for_each_gap, idx_best_for_each_gap] = max(G_best_abs_sums_2D, [], 2);
+
+% 参考: どの gap_gap で最大になったか知りたい場合は
+best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
+
+% -- gap vs (最も大きい abs(g1)+abs(g2)) を1次元プロット
+figure('Name','Max of abs(g1)+abs(g2) vs gap');
+plot(gap_nm_values, G_abs_sums_best_for_each_gap, '-o');
+xlabel('Gap size (nm)');
+ylabel('max_{gap\\_gap}( abs(g1)+abs(g2) )');
+title('Max of abs(g1)+abs(g2) vs gap');
+grid on;
+
+% 結果を保存（例: PNG 形式）
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', ...
+    output_folder_name, timestamp));
