@@ -10,7 +10,7 @@ display_plots = false;                      % plotting during the run? (false �
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 500;                                    % number of iterations
+N = 2000;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -27,15 +27,15 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 200:200:1000;
-gap_nm_values = [200, 300];
+gap_nm_values = 200:20:1000;
+% gap_nm_values = [200, 300];
 
 %% gap_gap を変化させるための配列
-% gap_gap_nm_values = 300:200:1000;
-gap_gap_nm_values = [300, 400];
+gap_gap_nm_values = 300:200:1000;
+% gap_gap_nm_values = [300, 400];
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/double_channel_gap_gapgap_step_200_Jan19';
+output_folder_name = 'result/double_channel_gap_step_20_gapgap_step_200_Jan19';
 
 % -------------------------------------------------------------
 % 2D で結果を保持するために，配列の長さを取得
