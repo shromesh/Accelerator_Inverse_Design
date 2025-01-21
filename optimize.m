@@ -27,11 +27,11 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 200:20:1000;
-% gap_nm_values = [200, 300];
+% gap_nm_values = 200:20:1000;
+gap_nm_values = [300];
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 300:200:1000;
+gap_gap_nm_values = [300];
 % gap_gap_nm_values = [300, 400];
 
 %% 出力フォルダ名を設定
@@ -137,6 +137,7 @@ for gap_nm = gap_nm_values
         Ex = fields.Ex;
         Ey = fields.Ey;
         E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
+        display(E0);
         
         % define variables to store the iteration progress
         G_best_local = 0;          % best gradient in this run
