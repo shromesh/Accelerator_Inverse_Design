@@ -20,7 +20,7 @@ grids_in_lam = 100;                         % number of grid points in a free sp
 % grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 100:100:1200;
-gap_nm_values = [400];
+gap_nm_values = [300];
 L = 0.45;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
@@ -115,7 +115,7 @@ for gap_nm = gap_nm_values
         Ex = fields.Ex;
         Ey = fields.Ey;
         E0 = sqrt(abs(Ex(nx, ny))^2 + abs(Ey(nx, ny))^2);
-        
+        display(E0);
         % define variables to store the iteration progress
         G_best = 0;                 % best gradient
         Gs = zeros(N,1);            % gradients over iteration
