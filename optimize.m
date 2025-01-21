@@ -137,7 +137,7 @@ for gap_nm = gap_nm_values
         Ex = fields.Ex;
         Ey = fields.Ey;
         E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
-        display(E0);
+        % display(E0);
         
         % define variables to store the iteration progress
         G_best_local = 0;          % best gradient in this run
