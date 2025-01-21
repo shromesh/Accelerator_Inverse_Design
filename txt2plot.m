@@ -1,8 +1,10 @@
 %% スクリプトの概要
 %  既存の "final_acceleration_gradients_gap_XXX_gapgap_YYY_..." テキストファイルを読み込み、
-%    1) (abs(g1)+abs(g2)) vs gap for each gap_gap
-%    2) (abs(g1)+abs(g2))*gap vs gap for each gap_gap
-%  の2つのグラフを作成して、画面に表示したうえで PNG 保存も行います。
+%    (1) abs(g1) vs gap for each gap_gap
+%    (2) abs(g2) vs gap for each gap_gap
+%    (3) (abs(g1)+abs(g2)) vs gap for each gap_gap
+%    (4) (abs(g1)+abs(g2))*gap vs gap for each gap_gap
+%  の4つのグラフを作成・保存します。
 
 clear; close all; clc;
 
@@ -17,10 +19,14 @@ output_folder_name = 'result/double_channel_gap_step_20_gapgap_step_200_Jan19';
 ngap    = length(gap_nm_values);
 ngapgap = length(gap_gap_nm_values);
 
-G_abs_sums_2D           = zeros(ngap, ngapgap);  % (abs(g1)+abs(g2))
-G_abs_sums_times_gap_2D = zeros(ngap, ngapgap);  % (abs(g1)+abs(g2))*gap
+% abs(g1), abs(g2), abs(g1)+abs(g2), (abs(g1)+abs(g2))*gap を格納
+G1_abs_2D = zeros(ngap, ngapgap);  % abs(g1)
+G2_abs_2D = zeros(ngap, ngapgap);  % abs(g2)
 
-%% 3. テキストファイルを読み込んで、(abs(g1)+abs(g2)) と (abs(g1)+abs(g2))*gap を取得
+G_abs_sums_2D           = zeros(ngap, ngapgap);  % (abs(g1) + abs(g2))
+G_abs_sums_times_gap_2D = zeros(ngap, ngapgap);  % (abs(g1) + abs(g2)) * gap
+
+%% 3. テキストファイルを読み込んで、各種値を取得
 for iGap = 1:ngap
     gap_nm = gap_nm_values(iGap);
     
@@ -71,12 +77,57 @@ for iGap = 1:ngap
         %---------------------------------------------------------
         % 3-3. 2次元配列に格納
         %---------------------------------------------------------
-        G_abs_sums_2D(iGap, jGapGap)           = val_sum;
-        G_abs_sums_times_gap_2D(iGap, jGapGap) = val_sum_times_gap;  % 既に gap をかけた値
+        G1_abs_2D(iGap, jGapGap)                = val_G1_abs;
+        G2_abs_2D(iGap, jGapGap)                = val_G2_abs;
+        G_abs_sums_2D(iGap, jGapGap)            = val_sum;
+        G_abs_sums_times_gap_2D(iGap, jGapGap)  = val_sum_times_gap;
     end
 end
 
-%% 4. グラフ1: (abs(g1)+abs(g2)) vs gap for each gap_gap
+%% タイムスタンプ文字列 (ファイル名に付加して一意化)
+timestamp_str = datestr(now,'yyyy-mm-dd_HHMMSS');
+
+%% 4. グラフ1: abs(g1) vs gap for each gap_gap
+figure('Name','abs(g1) vs gap for each gap\_gap');
+hold on; grid on;
+
+for jGapGap = 1:ngapgap
+    plot(gap_nm_values, G1_abs_2D(:, jGapGap), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+
+xlabel('gap (nm)');
+ylabel('abs(g1)');
+title('abs(g1) vs gap for each gap\_gap');
+legend('show');
+
+% 保存
+save_filename1 = fullfile(output_folder_name, ...
+    sprintf('plot_abs_g1_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+saveas(gcf, save_filename1);
+fprintf('Saved figure: %s\n', save_filename1);
+
+%% 5. グラフ2: abs(g2) vs gap for each gap_gap
+figure('Name','abs(g2) vs gap for each gap\_gap');
+hold on; grid on;
+
+for jGapGap = 1:ngapgap
+    plot(gap_nm_values, G2_abs_2D(:, jGapGap), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+
+xlabel('gap (nm)');
+ylabel('abs(g2)');
+title('abs(g2) vs gap for each gap\_gap');
+legend('show');
+
+% 保存
+save_filename2 = fullfile(output_folder_name, ...
+    sprintf('plot_abs_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+saveas(gcf, save_filename2);
+fprintf('Saved figure: %s\n', save_filename2);
+
+%% 6. グラフ3: (abs(g1)+abs(g2)) vs gap for each gap_gap
 figure('Name','(abs(g1)+abs(g2)) vs gap for each gap\_gap');
 hold on; grid on;
 
@@ -90,14 +141,13 @@ ylabel('(abs(g1)+abs(g2))');
 title('(abs(g1)+abs(g2)) vs gap for each gap\_gap');
 legend('show');
 
-% 保存 (例: PNG 形式)
-timestamp_str = datestr(now,'yyyy-mm-dd_HHMMSS');  % 一意の名前にしたい場合
-save_filename1 = fullfile(output_folder_name, ...
+% 保存
+save_filename3 = fullfile(output_folder_name, ...
     sprintf('plot_abs_g1_plus_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-saveas(gcf, save_filename1);
-fprintf('Saved figure: %s\n', save_filename1);
+saveas(gcf, save_filename3);
+fprintf('Saved figure: %s\n', save_filename3);
 
-%% 5. グラフ2: (abs(g1)+abs(g2))*gap vs gap for each gap_gap
+%% 7. グラフ4: (abs(g1)+abs(g2))*gap vs gap for each gap_gap
 figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap\_gap');
 hold on; grid on;
 
@@ -111,8 +161,8 @@ ylabel('(abs(g1)+abs(g2)) * gap');
 title('(abs(g1)+abs(g2)) * gap vs gap for each gap\_gap');
 legend('show');
 
-% 保存 (例: PNG 形式)
-save_filename2 = fullfile(output_folder_name, ...
+% 保存
+save_filename4 = fullfile(output_folder_name, ...
     sprintf('plot_abs_g1_plus_g2_times_gap_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-saveas(gcf, save_filename2);
-fprintf('Saved figure: %s\n', save_filename2);
+saveas(gcf, save_filename4);
+fprintf('Saved figure: %s\n', save_filename4);
