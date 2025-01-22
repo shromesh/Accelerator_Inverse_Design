@@ -74,7 +74,7 @@ g2_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
 E_max_1D                    = zeros(nComb, 1);
 abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1);
 abs_g_best_times_gap_1D     = zeros(nComb, 1);
-ER_best_1D                  = zeros(nComb, Nx_pre, Ny_pre); % Fix: Use pre-calculated Nx_pre and Ny_pre
+ER_best_1D                  = cell(nComb, 1); % Fix: Use cell array to store ER_best
 
 
 % -------------------------------------------------------------
@@ -297,7 +297,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     ER_best(ER_best<eps_avg) = 1;
     ER_best(ER_best>=eps_avg) = eps;
     
-    ER_best_1D(k, 1:Nx, 1:Ny) = ER_best; % Save ER_best to 1D array, using calculated Nx, Ny
+    ER_best_1D{k} = ER_best; % Save ER_best to cell array
     
     
     % do another simulation of the binary distribution for ER_best
@@ -368,7 +368,7 @@ for k = 1:nComb
         bestFig = figure('Name','Best Structure','Visible','off');
     end
     disp_best = [];
-    ER_best_k = squeeze(ER_best_1D(k, :, :)); % Retrieve ER_best for this k
+    ER_best_k = ER_best_1D{k}; % Retrieve ER_best from cell array
     for k_ = 1:5
         disp_best = [disp_best; real(ER_best_k)];
     end
@@ -419,7 +419,7 @@ for iGap = 1:ngap
     % k = (iGap-1)*ngapgap + jGapGap
     k_vec = (iGap-1)*ngapgap + (1:ngapgap);
     [G_abs_sums_best_for_each_gap(iGap), localBestIdx] = max(G_best_abs_sums_1D(k_vec));
-    idx_best_for_each_gap(iGap) = localBestIdx;
+    idx_best_for_each_gap = localBestIdx;
 end
 
 best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
