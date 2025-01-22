@@ -422,7 +422,7 @@ end
 % Plot G_best for each gap size and save the figure
 figure;
 plot(gap_nm_values, G_best_values, '-o');
-xlabel('Gap size (nm)');
+xlabel('gap (nm)');
 ylabel('abs(g)');
 title('abs(g) vs gap');
 grid on;
@@ -431,7 +431,7 @@ saveas(gcf, sprintf('%s/G_best_vs_gap_size_%s.png', output_folder_name, timestam
 % Plot G_best * gap for each gap size and save the figure
 figure;
 plot(gap_nm_values, G_best_times_gap_values, '-o');
-xlabel('Gap size (nm)');
+xlabel('gap (nm)');
 ylabel('abs(g) * gap');
 title('abs(g) * gap vs gap');
 grid on;
