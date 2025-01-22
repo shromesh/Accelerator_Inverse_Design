@@ -11,7 +11,7 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 1500;                                   % number of iterations
+N = 100;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
@@ -38,7 +38,7 @@ nmax = sqrt(eps);    % refractive index of material region
 
 gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
-output_folder_name = 'result/exp_L_shorter';
+output_folder_name = 'result/single_channel_step_20_jan21_grids_100_L04';
 
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
@@ -115,7 +115,7 @@ for gap_nm = gap_nm_values
         Ex = fields.Ex;
         Ey = fields.Ey;
         E0 = sqrt(abs(Ex(nx, ny))^2 + abs(Ey(nx, ny))^2);
-        display(E0);
+        % display(E0);
         % define variables to store the iteration progress
         G_best = 0;                 % best gradient
         Gs = zeros(N,1);            % gradients over iteration
