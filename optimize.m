@@ -54,9 +54,8 @@ G_best_abs_sums_times_gap_2D = zeros(ngap, ngapgap);
 
 % -------------------------------------------------------------
 % ループ開始
-iGap = 0;
-parfor gap_nm = gap_nm_values
-    iGap = iGap + 1;
+parfor idx = 1:ngap
+    gap_nm = gap_nm_values(idx);
     jGapGap = 0;
     for gap_gap_nm = gap_gap_nm_values
         jGapGap = jGapGap + 1;
@@ -328,10 +327,10 @@ parfor gap_nm = gap_nm_values
         
         % ----------------------------------
         % 結果を2次元配列に格納
-        G_best_values_2D(iGap, jGapGap)             = G_best_local_final;
-        G_best_abs_sums_2D(iGap, jGapGap)           = (abs(g1_best) + abs(g2_best));
-        G_best_values_times_gap_2D(iGap, jGapGap)   = G_best_local_final * gap_nm;
-        G_best_abs_sums_times_gap_2D(iGap, jGapGap) = (abs(g1_best) + abs(g2_best)) * gap_nm;
+        G_best_values_2D(idx, jGapGap)             = G_best_local_final;
+        G_best_abs_sums_2D(idx, jGapGap)           = (abs(g1_best) + abs(g2_best));
+        G_best_values_times_gap_2D(idx, jGapGap)   = G_best_local_final * gap_nm;
+        G_best_abs_sums_times_gap_2D(idx, jGapGap) = (abs(g1_best) + abs(g2_best)) * gap_nm;
         
     end % end of gap_gap_nm loop
     
