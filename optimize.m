@@ -54,15 +54,16 @@ G_best_values_1D             = zeros(nComb, 1);
 G_best_abs_sums_1D           = zeros(nComb, 1);
 G_best_values_times_gap_1D   = zeros(nComb, 1);
 G_best_abs_sums_times_gap_1D = zeros(nComb, 1);
-G_best_values_final_1D       = zeros(nComb, 1); % 追加
-G1_best_1D                  = zeros(nComb, 1); % 追加
-G2_best_1D                  = zeros(nComb, 1); % 追加
-g_best_complex_1D           = complex(zeros(nComb, 1), zeros(nComb, 1)); % 追加
-g1_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1)); % 追加
-g2_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1)); % 追加
-E_max_1D                    = zeros(nComb, 1);     % 追加
-abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1); % 追加
-abs_g_best_times_gap_1D     = zeros(nComb, 1);     % 追加
+G_best_values_final_1D       = zeros(nComb, 1);
+G1_best_1D                  = zeros(nComb, 1);
+G2_best_1D                  = zeros(nComb, 1);
+g_best_complex_1D           = complex(zeros(nComb, 1), zeros(nComb, 1));
+g1_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
+g2_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
+E_max_1D                    = zeros(nComb, 1);
+abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1);
+abs_g_best_times_gap_1D     = zeros(nComb, 1);
+ER_best_1D                  = zeros(nComb, Nx, Ny); % Add this line to store ER_best
 
 
 % -------------------------------------------------------------
@@ -285,6 +286,8 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     ER_best(ER_best<eps_avg) = 1;
     ER_best(ER_best>=eps_avg) = eps;
     
+    ER_best_1D(k, :, :) = ER_best; % Save ER_best to 1D array
+    
     % do another simulation of the binary distribution for ER_best
     [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
     Ex_best = fields_best.Ex/E0;
@@ -303,7 +306,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
     E_max = max(E_abs(:));
     
-    % 1D配列に格納 (ファイル書き出しは parfor ループ後に行う)
+    % 1D配列に格納 (ファイル書き出しと画像保存は parfor ループ後に行う)
     G_best_values_1D(k)             = G_best_local_final;
     G_best_abs_sums_1D(k)           = (abs(g1_best) + abs(g2_best));
     G_best_values_times_gap_1D(k)   = G_best_local_final * gap_nm;
@@ -322,7 +325,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
 end % end of k loop (1次元 parfor ループ)
 
 % -------------------------------------------------------------
-%  ファイル書き出し (parfor ループ後)
+%  ファイル書き出し & 画像保存 (parfor ループ後)
 for k = 1:nComb
     % --- 1次元インデックス k から idx, jGapGap, gap_nm, gap_gap_nm を復元 ---
     idx     = floor((k-1)/ngapgap) + 1;
@@ -346,8 +349,26 @@ for k = 1:nComb
     fclose(fileID);
     fprintf('File saved as: %s\n', fname);
     
-    % best structure の可視化・保存 (parfor ループ内から移動。もし必要なら)
-    % ... (best structure visualization and saving, if needed outside parfor)
+    % best structure の可視化・保存
+    if display_plots
+        bestFig = figure('Name','Best Structure','Visible','on');
+    else
+        bestFig = figure('Name','Best Structure','Visible','off');
+    end
+    disp_best = [];
+    ER_best_k = squeeze(ER_best_1D(k, :, :)); % Retrieve ER_best for this k
+    for k_ = 1:5
+        disp_best = [disp_best; real(ER_best_k)];
+    end
+    imagesc(disp_best, [1, eps]);
+    colormap(flipud(gray));
+    axis equal tight;
+    title(sprintf('Best Structure (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
+    colorbar();
+    
+    figNameBest = sprintf('%s/best_structure_gap_%d_gapgap_%d_%s.png', ...
+        output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    saveas(bestFig, figNameBest);
 end
 
 
