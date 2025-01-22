@@ -10,12 +10,24 @@ display_plots = false;                      % plotting during the run? (false �
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                      % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 2000;                                    % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions.
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
+
+%% 新たに追加: gap を変化させるための配列
+gap_nm_values = 40:40:1000;
+% gap_nm_values = [300];
+
+%% gap_gap を変化させるための配列
+gap_gap_nm_values = [300, 500, 700, 900];
+% gap_gap_nm_values = [300, 400];
+
+N = 4000;                                   % number of iterations
+
+parpool('local', 10);
+timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
 npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
 % relative permittivity of material region.  uncomment to select
@@ -26,16 +38,8 @@ eps = 3.4363^2;     % Si 2um
 
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
-%% 新たに追加: gap を変化させるための配列
-gap_nm_values = 200:20:1000;
-% gap_nm_values = [300];
-
-%% gap_gap を変化させるための配列
-gap_gap_nm_values = [300, 500, 700, 900];
-% gap_gap_nm_values = [300, 400];
-
 %% 出力フォルダ名を設定
-output_folder_name = 'result/double_channel_gap_step_20_gapgap_step_200_Jan19';
+output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
 
 % -------------------------------------------------------------
 % 2D で結果を保持するために，配列の長さを取得
@@ -51,7 +55,7 @@ G_best_abs_sums_times_gap_2D = zeros(ngap, ngapgap);
 % -------------------------------------------------------------
 % ループ開始
 iGap = 0;
-for gap_nm = gap_nm_values
+parfor gap_nm = gap_nm_values
     iGap = iGap + 1;
     jGapGap = 0;
     for gap_gap_nm = gap_gap_nm_values
@@ -206,7 +210,7 @@ for gap_nm = gap_nm_values
             Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
             Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
             
-            AVM = -real((Ex.*Ex_aj + Ey.*Ey_aj).*delta_device);
+            AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
             
             % update permittivity
             ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
@@ -242,7 +246,7 @@ for gap_nm = gap_nm_values
                 subplot(2,2,2);
                 plot(Gs(1:jj),'k');
                 xlabel('iteration number')
-                ylabel('power (G)')
+                ylabel('gradient (E_0)')
                 title('acceleration gradient at \phi = 0')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
@@ -287,7 +291,6 @@ for gap_nm = gap_nm_values
         E_max = max(E_abs(:));
         
         % テキスト出力
-        timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
         fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', ...
             output_folder_name, gap_nm, gap_gap_nm, timestamp);
         fileID = fopen(fname, 'w');
@@ -383,14 +386,14 @@ saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_times_gap_%s.png', output_folder_name
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% (新規) gap_gapをlegendとして、gap vs G=abs(g1)+abs(g2)を1次元プロット
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-figure('Name','gap vs abs(g1)+abs(g2) for each gap_gap');
+figure('Name','abs(g1)+abs(g2) vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
     plot(gap_nm_values, G_best_abs_sums_2D(:, jGapGap), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
 legend('show');  % 凡例を表示
-xlabel('Gap size (nm)');
+xlabel('gap (nm)');
 ylabel('abs(g1)+abs(g2)');
 title('abs(g1)+abs(g2) vs gap for each gap\_gap');
 grid on;
@@ -412,13 +415,15 @@ saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_vs_gap_for_each_gapgap_%s.png', ...
 best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
 
 % -- gap vs (最も大きい abs(g1)+abs(g2)) を1次元プロット
-figure('Name','Max of abs(g1)+abs(g2) vs gap');
+figure('Name','abs(g1)+abs(g2) with best gap_gap vs gap');
 plot(gap_nm_values, G_abs_sums_best_for_each_gap, '-o');
-xlabel('Gap size (nm)');
-ylabel('max_{gap\\_gap}( abs(g1)+abs(g2) )');
-title('Max of abs(g1)+abs(g2) vs gap');
+xlabel('gap (nm)');
+ylabel('abs(g1)+abs(g2) with best gap_gap');
+title('abs(g1)+abs(g2) with best gap_gap vs gap');
 grid on;
 
 % 結果を保存（例: PNG 形式）
 saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', ...
     output_folder_name, timestamp));
+
+delete(gcp('nocreate'));
