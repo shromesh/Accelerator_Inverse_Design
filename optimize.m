@@ -11,20 +11,22 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-% N = 3000;                                   % number of iterations
-N = 100;                                   % number of iterations
-% 3000回くらいで収束かも
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 75;                         % number of grid points in a free space wavelength
-% grids_in_lam = 100;                         % number of grid points in a free space wavelength
-% gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
-% gap_nm_values = 100:100:1200;
-% gap_nm_values = 200:20:1000;
-gap_nm_values = [880, 900];
-% gap_nm_values = 100:10:200;
+% grids_in_lam = 75;                         % number of grid points in a free space wavelength
+grids_in_lam = 50;                         % number of grid points in a free space wavelength
+gap_nm_values = 200:40:1300;                % gap size in nm variations with step of 10
+
+N = 4000;                                   % number of iterations
+% N = 100;                                   % number of iterations
+% 3000回くらいで収束かも
+% gap_nm_values = 25:25:1000;
+% gap_nm_values = [200, 250, 300, 350, 400, 450, 500, 550, 600, 650];
+% gap_nm_values = [600];
+parpool('local', 10);
+timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
 L = 0.4;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
@@ -42,16 +44,16 @@ nmax = sqrt(eps);    % refractive index of material region
 
 gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
 
-output_folder_name = 'result/single_channel_step_20_jan21_grids_100_L04';
+output_folder_name = 'result/single_channel_step_40_jan23_parallel_grids_50_L04';
 
 %% SET OTHER CONSTANTS (DON'T CHANGE)
 dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
 dly  = dlx;                                 % spacing in the perpendicular direction
 
-G_best_values = [];                         % Array to store G_best for each gap size
-G_best_times_gap_values = [];               % Array to store G_best * gap for each gap size
+G_best_values = zeros(length(gap_nm_values), 1);                         % Array to store G_best for each gap size
+G_best_times_gap_values = zeros(length(gap_nm_values), 1);               % Array to store G_best * gap for each gap size
 
-parfor idx = 1:length(gap_nm_values)
+for idx = 1:length(gap_nm_values)
     gap_nm = gap_nm_values(idx);
     
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -362,7 +364,6 @@ parfor idx = 1:length(gap_nm_values)
         E_max_best = max(E_abs_best(:));
         
         % save both gradients into the same file
-        timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
         fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', output_folder_name, gap_nm, timestamp, gap_nm);
         fileID = fopen(fname, 'w');
         % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
@@ -370,12 +371,13 @@ parfor idx = 1:length(gap_nm_values)
         fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
         fprintf(fileID, 'E_max: %f\n', E_max_best);
         fprintf(fileID, 'L: %f\n', L); % Output the value of L
+        % fprintf(fileID, 'AVM: %f\n', AVM); % Output the AVM variable
         fclose(fileID);
         fprintf('File saved as: %s\n', fname);
         
         % store G_best value for this gap size
-        G_best_values = [G_best_values; G_best];
-        G_best_times_gap_values = [G_best_times_gap_values; G_best * gap_nm];
+        G_best_values(idx) = G_best;
+        G_best_times_gap_values(idx) = G_best * gap_nm;
         
         % display and save final structure
         % finalFig = figure('Name','Final Structure','Visible','on');
@@ -442,3 +444,5 @@ ylabel('abs(g) * gap');
 title('abs(g) * gap vs gap');
 grid on;
 saveas(gcf, sprintf('%s/G_best_times_gap_vs_gap_size_%s.png', output_folder_name, timestamp));
+
+delete(gcp('nocreate'));
