@@ -20,8 +20,9 @@ grids_in_lam = 100;                         % number of grid points in a free sp
 % grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 100:100:1200;
-gap_nm_values = [300];
-L = 0.4;                                   % size of optimization region (um)
+% gap_nm_values = 200:20:1000;
+gap_nm_values = [880];
+L = 0.7;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
 % resonance can occur very strongly. Need to try different values and see
