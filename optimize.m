@@ -18,7 +18,7 @@ grids_in_lam = 100;                         % number of grid points in a free sp
 
 %% 新たに追加: gap を変化させるための配列
 % gap_nm_values = 40:40:1000;
-gap_nm_values = [300];
+gap_nm_values = [300, 400];
 
 %% gap_gap を変化させるための配列
 % gap_gap_nm_values = [300, 500, 700, 900];
@@ -75,6 +75,9 @@ E_max_1D                    = zeros(nComb, 1);
 abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1);
 abs_g_best_times_gap_1D     = zeros(nComb, 1);
 ER_best_1D                  = cell(nComb, 1); % Fix: Use cell array to store ER_best
+abs_g1_best_1D              = zeros(nComb, 1); % New: abs(g1)
+abs_g2_best_1D              = zeros(nComb, 1); % New: abs(g2)
+abs_sum_g_times_gap_1D      = zeros(nComb, 1); % New: (abs(g1)+abs(g2))*gap
 
 
 % -------------------------------------------------------------
@@ -88,37 +91,25 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     gap_gap_nm = gap_gap_nm_values(jGapGap);
     
     %% SET OTHER CONSTANTS
-    dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
-    dly = dlx;                                  % spacing in the perpendicular direction
-    
-    % gap_nm から grid point に換算
-    gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
-    
-    % gap_gap_nm から grid point に換算
-    gap_gap_pts = floor(gap_gap_nm/1000/dlx);   % number of grid points in the gap between the two gaps
-    
-    L = 0.4;                                    % size of optimization region (um)
-    Lpts = round(L/dlx);                        % number of points in the optimization region
-    
-    pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
-    spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
-    
+    % (SET OTHER CONSTANTS ブロックは previous code と同じなので省略)
+    dlx = lambda0/grids_in_lam;
+    dly = dlx;
+    gap_pts = floor(gap_nm/1000/dlx);
+    gap_gap_pts = floor(gap_gap_nm/1000/dlx);
+    L = 0.4;
+    Lpts = round(L/dlx);
+    pos_src = floor(npml+grids_in_lam/4);
+    spc_pts = floor(grids_in_lam/4);
     Nx = ceil(lambda0*beta/dlx);
-    % 2つのギャップ + 中央 gap_gap_pts + 上下2つの最適化領域 + PML の外の領域 など
     Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;
-    
     nx = floor(Nx/2);
     ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
     ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
-    
-    %% 初期化いろいろ
     ER  = ones(Nx,Ny);
     MuR = ones(Nx,Ny);
     ER_best = ones(Nx,Ny);
-    A_best = 0; %#ok<NASGU> % 未使用
-    
+    A_best = 0;
     b = zeros(Nx,Ny);
-    % define the total field region on the grid
     b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts + spc_pts) = 1;
     kinc = [0,1];
     RES = [dlx,dly];
@@ -126,27 +117,19 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     NPML = [0,0,npml,npml];
     Pol= 'Hz';
     spc = spc_pts*dly;
-    gap = gap_pts*dly; %#ok<NASGU>
-    
-    xs = dlx*(1:Nx); %#ok<NASGU>
-    
+    gap = gap_pts*dly;
+    xs = dlx*(1:Nx);
     delta_device = zeros(Nx,Ny);
     delta_device(1:Nx, pos_src + spc_pts : pos_src + spc_pts + Lpts) = 1;
     delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts) = 1;
-    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : ...
-        pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
+    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
     delta_device_vec = delta_device(:);
-    
-    % define the eta vector fields for the two channels
     eta1 = zeros(Nx,Ny);
     eta1(:,ny1) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
     eta1_vec = eta1(:);
-    
     eta2 = zeros(Nx,Ny);
     eta2(:,ny2) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
     eta2_vec = eta2(:);
-    
-    % define starting permittivity
     for i = (1:Nx)
         for j = (1:Ny)
             if (delta_device(i,j) == 1)
@@ -160,100 +143,65 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
             end
         end
     end
-    
-    % run the simulation with accelerator input (plane wave) but all empty space
     [fields, ~] = FDFD_TFSF(ones(Nx,Ny),MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-    
-    % get the fields and the E0 (normalization)
     Ex = fields.Ex;
     Ey = fields.Ey;
     E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
-    
-    % define variables to store the iteration progress
-    G_best_local = 0;          % best gradient in this run
+    G_best_local = 0;
     AVM_prev = zeros(Nx,Ny);
-    
     if display_plots
-        figure(1);  % open a figure to plot
+        figure(1);
     end
-    
     display('working on gradient maximized structure');
     upd = textprogressbar(N);
-    
-    Gs     = zeros(N,1); %#ok<NASGU> % iterationごとのログ用（必要なら可視化/保存）
-    E_maxs = zeros(N,1); %#ok<NASGU>
-    phis   = zeros(N,1); %#ok<NASGU>
+    Gs     = zeros(N,1);
+    E_maxs = zeros(N,1);
+    phis   = zeros(N,1);
     
     for jj = (1:N)
-        
+        % (最適化 iteration loop ブロックは previous code と同じなので省略)
         upd(jj);
-        % original simulation
         [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
         Ex = fields.Ex/E0;
         Ey = fields.Ey/E0;
-        
-        % compute gradients
         g1 = sum(sum(eta1.*Ex));
         g2 = sum(sum(eta2.*Ex));
         g  = g1 + g2;
         G  = real(g);
-        
-        % get phase
-        phis(jj) = angle(g); %#ok<NASGU>
-        
-        % get numerical spatial derivative operators
+        phis(jj) = angle(g);
         DEY = extra.derivatives.DEY;
         DEX = extra.derivatives.DEX;
-        
         ER_vec = ER(:);
         chi = delta_device.*(ER - ones(Nx,Ny));
-        
-        % in_material を考慮した E_abs
         if (in_material)
             E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
         else
             E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
         end
-        
         E_abs_vec = E_abs(:);
-        E_maxs(jj) = max(E_abs_vec); %#ok<NASGU>
-        
-        % アジュゲート場計算
+        E_maxs(jj) = max(E_abs_vec);
         Ox = -1i*lambda0/(2*pi*c0)*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEY;
         Oy =  1i*lambda0/(2*pi*c0)*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEX;
-        
         eta1_aj = [eta1_vec; zeros(Nx*Ny,1)];
         eta2_aj = [eta2_vec; zeros(Nx*Ny,1)];
-        
         b_aj = - (eta1_aj + eta2_aj);
         b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
         b_aj(isnan(b_aj)) = 0 ;
-        
         AF = extra.AF;
         [fields_aj, ~] = FDFD_fast(ER,MuR,RES,NPML,BC,lambda0,Pol,b_aj,AF);
         x_aj = fields_aj.x/E0;
         Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
         Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
-        
         AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
-        
-        % update permittivity
         ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
         AVM_prev = AVM;
-        
-        % permittivity の上下限クリップ
         ER(ER < 1) = 1;
         ER(ER > eps) = eps;
-        
-        % ベスト更新
         if (abs(g) > G_best_local)
             G_best_local = abs(g);
             ER_best = ER;
         end
-        
-        Gs(jj) = real(g); %#ok<NASGU>
-        
-        % ---- プロット (iteration中)
+        Gs(jj) = real(g);
         if display_plots && mod(jj,skip)==0
             clf;
             subplot(2,2,1);
@@ -291,30 +239,20 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     end
     
     %% POST PROCESSING STUFF
-    
-    % force binary
+    % (POST PROCESSING STUFF ブロックは previous code と同じなので省略。ただし、1D配列への格納部分に追加)
     eps_avg = (eps+1)/2;
     ER_best(ER_best<eps_avg) = 1;
     ER_best(ER_best>=eps_avg) = eps;
-    
-    ER_best_1D{k} = ER_best; % Save ER_best to cell array
-    
-    
-    % do another simulation of the binary distribution for ER_best
+    ER_best_1D{k} = ER_best;
     [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
     Ex_best = fields_best.Ex/E0;
     Ey_best = fields_best.Ey/E0;
-    
-    % calculate g1_best and g2_best after the loop
     g1_best = sum(sum(eta1.*Ex_best));
     g2_best = sum(sum(eta2.*Ex_best));
     g_best  = g1_best + g2_best;
-    
     G_best_local_final = abs(g_best);
     G1_best = abs(g1_best);
     G2_best = abs(g2_best);
-    
-    % E_max の計算 (binary最終構造で)
     E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
     E_max = max(E_abs(:));
     
@@ -332,6 +270,9 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     E_max_1D(k)                    = E_max;
     abs_g1_plus_g2_times_gap_1D(k) = (abs(g1_best) + abs(g2_best)) * gap_nm;
     abs_g_best_times_gap_1D(k)     = abs(g_best) * gap_nm;
+    abs_g1_best_1D(k)              = abs(g1_best); % New: abs(g1)
+    abs_g2_best_1D(k)              = abs(g2_best); % New: abs(g2)
+    abs_sum_g_times_gap_1D(k)      = (abs(g1_best) + abs(g2_best)) * gap_nm; % New: (abs(g1)+abs(g2))*gap
     
     
 end % end of k loop (1次元 parfor ループ)
@@ -339,15 +280,12 @@ end % end of k loop (1次元 parfor ループ)
 % -------------------------------------------------------------
 %  ファイル書き出し & 画像保存 (parfor ループ後)
 for k = 1:nComb
-    % --- 1次元インデックス k から idx, jGapGap, gap_nm, gap_gap_nm を復元 ---
+    % (ファイル書き出し & 画像保存 loop ブロックは previous code と同じなので省略)
     idx     = floor((k-1)/ngapgap) + 1;
     jGapGap = mod(k-1, ngapgap) + 1;
     gap_nm     = gap_nm_values(idx);
     gap_gap_nm = gap_gap_nm_values(jGapGap);
-    
-    % テキスト出力ファイル名
-    fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', ...
-        output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', output_folder_name, gap_nm, gap_gap_nm, timestamp);
     fileID = fopen(fname, 'w');
     fprintf(fileID, 'G_best (abs): %f\n', G_best_values_final_1D(k));
     fprintf(fileID, 'G1_best (abs): %f\n', G1_best_1D(k));
@@ -360,15 +298,13 @@ for k = 1:nComb
     fprintf(fileID, 'abs(g1+g2)*gap: %f\n', abs_g_best_times_gap_1D(k));
     fclose(fileID);
     fprintf('File saved as: %s\n', fname);
-    
-    % best structure の可視化・保存
     if display_plots
         bestFig = figure('Name','Best Structure','Visible','on');
     else
         bestFig = figure('Name','Best Structure','Visible','off');
     end
     disp_best = [];
-    ER_best_k = ER_best_1D{k}; % Retrieve ER_best from cell array
+    ER_best_k = ER_best_1D{k};
     for k_ = 1:5
         disp_best = [disp_best; real(ER_best_k)];
     end
@@ -377,9 +313,7 @@ for k = 1:nComb
     axis equal tight;
     title(sprintf('Best Structure (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
     colorbar();
-    
-    figNameBest = sprintf('%s/best_structure_gap_%d_gapgap_%d_%s.png', ...
-        output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    figNameBest = sprintf('%s/best_structure_gap_%d_gapgap_%d_%s.png', output_folder_name, gap_nm, gap_gap_nm, timestamp);
     saveas(bestFig, figNameBest);
 end
 
@@ -388,49 +322,104 @@ end
 %  imagesc を削除
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% (新規) gap_gapをlegendとして、gap vs (abs(g1)+abs(g2))を1次元プロット
+%% (新規) 追加プロット (abs(g1), abs(g2), (abs(g1)+abs(g2))*gap など)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-figure('Name','abs(g1)+abs(g2) vs gap for each gap_gap');
+
+% 1. abs(g1) vs gap
+figure('Name','abs(g1) vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
-    % jGapGap を固定して，idx=1..ngap についての k を取り出す
-    % k = (idx - 1)*ngapgap + jGapGap で idx=1..ngap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_g1_best_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g1)');
+title('abs(g1) vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_g1_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+% 2. abs(g2) vs gap
+figure('Name','abs(g2) vs gap for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_g2_best_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g2)');
+title('abs(g2) vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_g2_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+% 3. (abs(g1)+abs(g2))*gap vs gap
+figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_sum_g_times_gap_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('(abs(g1)+abs(g2))*gap');
+title('(abs(g1)+abs(g2))*gap vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_sum_g_times_gap_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+
+% 4. (abs(g1)+abs(g2) with best gap_gap) * gap vs gap
+G_abs_sums_best_for_each_gap = zeros(ngap,1);
+idx_best_for_each_gap = zeros(ngap,1);
+abs_sum_g_best_times_gap_for_each_gap = zeros(ngap,1); % New: best (abs_sum)*gap
+
+for iGap = 1:ngap
+    k_vec = (iGap-1)*ngapgap + (1:ngapgap);
+    [G_abs_sums_best_for_each_gap(iGap), localBestIdx] = max(G_best_abs_sums_1D(k_vec));
+    idx_best_for_each_gap(iGap) = localBestIdx;
+    abs_sum_g_best_times_gap_for_each_gap(iGap) = max(abs_sum_g_times_gap_1D(k_vec)); % New: max of (abs_sum)*gap
+end
+best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
+
+
+figure('Name','(abs(g1)+abs(g2) with best gap_gap)*gap vs gap'); % Modified title
+plot(gap_nm_values, abs_sum_g_best_times_gap_for_each_gap, '-o'); % Modified y data
+xlabel('gap (nm)');
+ylabel('(abs(g1)+abs(g2) with best gap\_gap)*gap'); % Modified ylabel
+title('(abs(g1)+abs(g2) with best gap\_gap)*gap vs gap'); % Modified title
+grid on;
+saveas(gcf, sprintf('%s/abs_sum_g_best_times_gap_vs_gap_%s.png', output_folder_name, timestamp)); % Modified filename
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) gap_gapをlegendとして、gap vs (abs(g1)+abs(g2))を1次元プロット (既存プロット)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure('Name','abs(g1)+abs(g2) vs gap for each gap_gap'); % タイトル変更
+hold on;
+for jGapGap = 1:ngapgap
     k_vec = (0 : ngap-1)*ngapgap + jGapGap;
     plot(gap_nm_values, G_best_abs_sums_1D(k_vec), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
-legend('show');  % 凡例を表示
+legend('show');
 xlabel('gap (nm)');
 ylabel('abs(g1)+abs(g2)');
-title('abs(g1)+abs(g2) vs gap for each gap\_gap');
+title('abs(g1)+abs(g2) vs gap for each gap\_gap'); % タイトル変更
 grid on;
-saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_vs_gap_for_each_gapgap_%s.png', ...
-    output_folder_name, timestamp));
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% (新規) 各 gap で最大となる (abs(g1)+abs(g2)) を抽出して1次元プロット
+%% (新規) 各 gap で最大となる (abs(g1)+abs(g2)) を抽出して1次元プロット (既存プロット)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-G_abs_sums_best_for_each_gap = zeros(ngap,1);
-idx_best_for_each_gap = zeros(ngap,1);
-
-for iGap = 1:ngap
-    % iGap 固定，jGapGap=1..ngapgap に対して
-    % k = (iGap-1)*ngapgap + jGapGap
-    k_vec = (iGap-1)*ngapgap + (1:ngapgap);
-    [G_abs_sums_best_for_each_gap(iGap), localBestIdx] = max(G_best_abs_sums_1D(k_vec));
-    idx_best_for_each_gap = localBestIdx;
-end
-
-best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
-
-figure('Name','abs(g1)+abs(g2) with best gap_gap vs gap');
+figure('Name','abs(g1)+abs(g2) with best gap_gap vs gap'); % タイトル変更
 plot(gap_nm_values, G_abs_sums_best_for_each_gap, '-o');
 xlabel('gap (nm)');
 ylabel('abs(g1)+abs(g2) with best gap\_gap');
-title('abs(g1)+abs(g2) with best gap\_gap vs gap');
+title('abs(g1)+abs(g2) with best gap\_gap vs gap'); % タイトル変更
 grid on;
-saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', ...
-    output_folder_name, timestamp));
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', output_folder_name, timestamp));
 
 delete(gcp('nocreate'));
