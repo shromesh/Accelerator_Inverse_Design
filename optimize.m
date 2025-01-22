@@ -11,7 +11,7 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 100;                                   % number of iterations
+N = 1800;                                   % number of iterations
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
