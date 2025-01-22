@@ -11,18 +11,21 @@ display_plots = true;                       % plotting during the run?
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
 a = 3;                                     % smooth-max weight factor (see paper)
 beta = 0.5;                                 % ratio of electron speed to speed of light
-N = 2000;                                   % number of iterations
+% N = 3000;                                   % number of iterations
+N = 100;                                   % number of iterations
+% 3000回くらいで収束かも
 
 in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
 starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
 
-grids_in_lam = 100;                         % number of grid points in a free space wavelength
+grids_in_lam = 75;                         % number of grid points in a free space wavelength
 % grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 200:20:1300;                % gap size in nm variations with step of 10
 % gap_nm_values = 100:100:1200;
 % gap_nm_values = 200:20:1000;
-gap_nm_values = [880];
-L = 0.7;                                   % size of optimization region (um)
+gap_nm_values = [880, 900];
+% gap_nm_values = 100:10:200;
+L = 0.4;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
 % can diverge.  This is because there are many degrees of freedom and
 % resonance can occur very strongly. Need to try different values and see
@@ -48,7 +51,9 @@ dly  = dlx;                                 % spacing in the perpendicular direc
 G_best_values = [];                         % Array to store G_best for each gap size
 G_best_times_gap_values = [];               % Array to store G_best * gap for each gap size
 
-for gap_nm = gap_nm_values
+parfor idx = 1:length(gap_nm_values)
+    gap_nm = gap_nm_values(idx);
+    
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
     spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
     gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
