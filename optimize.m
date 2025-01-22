@@ -48,6 +48,17 @@ ngap    = length(gap_nm_values);
 ngapgap = length(gap_gap_nm_values);
 nComb   = ngap * ngapgap; % 全組み合わせ数
 
+% --- 事前に Nx, Ny を計算 (最初のパラメータセットで代表させる) ---
+dlx_pre = lambda0/grids_in_lam;
+gap_pts_pre = floor(gap_nm_values(1)/1000/dlx_pre);
+gap_gap_pts_pre = floor(gap_gap_nm_values(1)/1000/dlx_pre);
+Lpts_pre = round(0.4/dlx_pre);
+pos_src_pre = floor(npml+grids_in_lam/4);
+spc_pts_pre = floor(grids_in_lam/4);
+Nx_pre = ceil(lambda0*beta/dlx_pre);
+Ny_pre = 2*gap_pts_pre + 2*(pos_src_pre + Lpts_pre + spc_pts_pre) + gap_gap_pts_pre;
+% -------------------------------------------------------------
+
 % -------------------------------------------------------------
 %  1D の配列として用意
 G_best_values_1D             = zeros(nComb, 1);
@@ -63,7 +74,7 @@ g2_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
 E_max_1D                    = zeros(nComb, 1);
 abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1);
 abs_g_best_times_gap_1D     = zeros(nComb, 1);
-ER_best_1D                  = zeros(nComb, Nx, Ny); % Add this line to store ER_best
+ER_best_1D                  = zeros(nComb, Nx_pre, Ny_pre); % Fix: Use pre-calculated Nx_pre and Ny_pre
 
 
 % -------------------------------------------------------------
@@ -286,7 +297,8 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     ER_best(ER_best<eps_avg) = 1;
     ER_best(ER_best>=eps_avg) = eps;
     
-    ER_best_1D(k, :, :) = ER_best; % Save ER_best to 1D array
+    ER_best_1D(k, 1:Nx, 1:Ny) = ER_best; % Save ER_best to 1D array, using calculated Nx, Ny
+    
     
     % do another simulation of the binary distribution for ER_best
     [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
