@@ -17,15 +17,16 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 40:40:1000;
-gap_nm_values = [300, 400];
+gap_nm_values = 40:40:1000;
+% gap_nm_values = [300, 400];
 
 %% gap_gap を変化させるための配列
 % gap_gap_nm_values = 100:100:1000;
-gap_gap_nm_values = [300, 400];
+gap_gap_nm_values = 100:200:1000;
+% gap_gap_nm_values = [300, 400];
 
-% N = 4000;                                   % number of iterations
-N = 100;                                   % number of iterations
+N = 4000;                                   % number of iterations
+% N = 100;                                   % number of iterations
 
 parpool('local', 10);
 timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
