@@ -17,15 +17,15 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 40:40:1000;
-% gap_nm_values = [300, 400];
+% gap_nm_values = 40:40:1000;
+gap_nm_values = [300, 400];
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 100:100:1000;
-% gap_gap_nm_values = [300, 400];
+% gap_gap_nm_values = 100:100:1000;
+gap_gap_nm_values = [300, 400];
 
-N = 4000;                                   % number of iterations
-% N = 100;                                   % number of iterations
+% N = 4000;                                   % number of iterations
+N = 100;                                   % number of iterations
 
 parpool('local', 10);
 timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
@@ -40,7 +40,7 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/double_channel_step_40_gapgap_step_100_jan23_parallel_grids_100_L04';
+output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
 
 % -------------------------------------------------------------
 % gap_nm_values, gap_gap_nm_values の長さ
