@@ -9,11 +9,11 @@
 clear; close all; clc;
 
 %% 1. gap, gap_gap のリスト
-gap_nm_values     = 200:20:1000;  % gap の候補 (nm)
-gap_gap_nm_values = [300, 500, 700, 900];  % gap_gap の候補 (nm)
+gap_nm_values = 40:40:1000;
+gap_gap_nm_values = 100:200:1000;
 
 % テキストファイルが置かれているフォルダ
-output_folder_name = 'result/double_channel_gap_step_20_gapgap_step_200_Jan19';
+output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
 
 %% 2. データ格納用の配列 (gap vs gap_gap)
 ngap    = length(gap_nm_values);
@@ -87,65 +87,65 @@ end
 %% タイムスタンプ文字列 (ファイル名に付加して一意化)
 timestamp_str = datestr(now,'yyyy-mm-dd_HHMMSS');
 
-%% 4. グラフ1: abs(g1) vs gap for each gap_gap
-figure('Name','abs(g1) vs gap for each gap\_gap');
-hold on; grid on;
+% %% 4. グラフ1: abs(g1) vs gap for each gap_gap
+% figure('Name','abs(g1) vs gap for each gap\_gap');
+% hold on; grid on;
 
-for jGapGap = 1:ngapgap
-    plot(gap_nm_values, G1_abs_2D(:, jGapGap), '-o', ...
-        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-end
+% for jGapGap = 1:ngapgap
+%     plot(gap_nm_values, G1_abs_2D(:, jGapGap), '-o', ...
+%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+% end
 
-xlabel('gap (nm)');
-ylabel('abs(g1)');
-title('abs(g1) vs gap for each gap\_gap');
-legend('show');
+% xlabel('gap (nm)');
+% ylabel('abs(g1)');
+% title('abs(g1) vs gap for each gap\_gap');
+% legend('show');
 
-% 保存
-save_filename1 = fullfile(output_folder_name, ...
-    sprintf('plot_abs_g1_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-saveas(gcf, save_filename1);
-fprintf('Saved figure: %s\n', save_filename1);
+% % 保存
+% save_filename1 = fullfile(output_folder_name, ...
+%     sprintf('plot_abs_g1_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+% saveas(gcf, save_filename1);
+% fprintf('Saved figure: %s\n', save_filename1);
 
 %% 5. グラフ2: abs(g2) vs gap for each gap_gap
-figure('Name','abs(g2) vs gap for each gap\_gap');
-hold on; grid on;
+% figure('Name','abs(g2) vs gap for each gap\_gap');
+% hold on; grid on;
 
-for jGapGap = 1:ngapgap
-    plot(gap_nm_values, G2_abs_2D(:, jGapGap), '-o', ...
-        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-end
+% for jGapGap = 1:ngapgap
+%     plot(gap_nm_values, G2_abs_2D(:, jGapGap), '-o', ...
+%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+% end
 
-xlabel('gap (nm)');
-ylabel('abs(g2)');
-title('abs(g2) vs gap for each gap\_gap');
-legend('show');
+% xlabel('gap (nm)');
+% ylabel('abs(g2)');
+% title('abs(g2) vs gap for each gap\_gap');
+% legend('show');
 
-% 保存
-save_filename2 = fullfile(output_folder_name, ...
-    sprintf('plot_abs_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-saveas(gcf, save_filename2);
-fprintf('Saved figure: %s\n', save_filename2);
+% % 保存
+% save_filename2 = fullfile(output_folder_name, ...
+%     sprintf('plot_abs_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+% saveas(gcf, save_filename2);
+% fprintf('Saved figure: %s\n', save_filename2);
 
 %% 6. グラフ3: (abs(g1)+abs(g2)) vs gap for each gap_gap
-figure('Name','(abs(g1)+abs(g2)) vs gap for each gap\_gap');
-hold on; grid on;
+% figure('Name','(abs(g1)+abs(g2)) vs gap for each gap\_gap');
+% hold on; grid on;
 
-for jGapGap = 1:ngapgap
-    plot(gap_nm_values, G_abs_sums_2D(:, jGapGap), '-o', ...
-        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-end
+% for jGapGap = 1:ngapgap
+%     plot(gap_nm_values, G_abs_sums_2D(:, jGapGap), '-o', ...
+%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+% end
 
-xlabel('gap (nm)');
-ylabel('(abs(g1)+abs(g2))');
-title('(abs(g1)+abs(g2)) vs gap for each gap\_gap');
-legend('show');
+% xlabel('gap (nm)');
+% ylabel('(abs(g1)+abs(g2))');
+% title('(abs(g1)+abs(g2)) vs gap for each gap\_gap');
+% legend('show');
 
 % 保存
-save_filename3 = fullfile(output_folder_name, ...
-    sprintf('plot_abs_g1_plus_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-saveas(gcf, save_filename3);
-fprintf('Saved figure: %s\n', save_filename3);
+% save_filename3 = fullfile(output_folder_name, ...
+%     sprintf('plot_abs_g1_plus_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+% saveas(gcf, save_filename3);
+% fprintf('Saved figure: %s\n', save_filename3);
 
 %% 7. グラフ4: (abs(g1)+abs(g2))*gap vs gap for each gap_gap
 figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap\_gap');
@@ -163,6 +163,6 @@ legend('show');
 
 % 保存
 save_filename4 = fullfile(output_folder_name, ...
-    sprintf('plot_abs_g1_plus_g2_times_gap_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+    sprintf('abs_sum_g_times_gap_vs_gap_for_each_gapgap_%s_new.png', timestamp_str));
 saveas(gcf, save_filename4);
 fprintf('Saved figure: %s\n', save_filename4);
