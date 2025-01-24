@@ -1,11 +1,3 @@
-%% スクリプトの概要
-%  既存の "final_acceleration_gradients_gap_XXX_gapgap_YYY_..." テキストファイルを読み込み、
-%    (1) abs(g1) vs gap for each gap_gap
-%    (2) abs(g2) vs gap for each gap_gap
-%    (3) (abs(g1)+abs(g2)) vs gap for each gap_gap
-%    (4) (abs(g1)+abs(g2))*gap vs gap for each gap_gap
-%  の4つのグラフを作成・保存します。
-
 clear; close all; clc;
 
 %% 1. gap, gap_gap のリスト
@@ -13,7 +5,9 @@ gap_nm_values = 40:40:1000;
 gap_gap_nm_values = 100:200:1000;
 
 % テキストファイルが置かれているフォルダ
-output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
+input_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
+output_folder_name = 'result/double_channel_abs_g1_g2_gap_gap_jan24';
+
 
 %% 2. データ格納用の配列 (gap vs gap_gap)
 ngap    = length(gap_nm_values);
@@ -39,7 +33,7 @@ for iGap = 1:ngap
         %---------------------------------------------------------
         file_pattern = sprintf('final_acceleration_gradients_gap_%d_gapgap_%d_*.txt', ...
             gap_nm, gap_gap_nm);
-        file_list = dir(fullfile(output_folder_name, file_pattern));
+        file_list = dir(fullfile(input_folder_name, file_pattern));
         
         if isempty(file_list)
             fprintf('Warning: %s が見つかりません。\n', file_pattern);
@@ -47,7 +41,7 @@ for iGap = 1:ngap
         end
         
         % 同じ条件で複数ファイルあれば最初の1つを使う
-        target_file = fullfile(output_folder_name, file_list(1).name);
+        target_file = fullfile(input_folder_name, file_list(1).name);
         
         %---------------------------------------------------------
         % 3-2. テキスト読み込み・正規表現
@@ -87,68 +81,100 @@ end
 %% タイムスタンプ文字列 (ファイル名に付加して一意化)
 timestamp_str = datestr(now,'yyyy-mm-dd_HHMMSS');
 
-% %% 4. グラフ1: abs(g1) vs gap for each gap_gap
-% figure('Name','abs(g1) vs gap for each gap\_gap');
-% hold on; grid on;
+% %% 4. グラフ1: abs(g1) * gap vs gap for each gap_gap
+figure('Name','abs(g1) * gap vs gap for each gap\_gap');
+hold on; grid on;
 
-% for jGapGap = 1:ngapgap
-%     plot(gap_nm_values, G1_abs_2D(:, jGapGap), '-o', ...
-%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-% end
+for jGapGap = 1:ngapgap
+    plot(gap_nm_values, G1_abs_2D(:, jGapGap) .* gap_nm_values', '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
 
-% xlabel('gap (nm)');
-% ylabel('abs(g1)');
-% title('abs(g1) vs gap for each gap\_gap');
-% legend('show');
-
-% % 保存
-% save_filename1 = fullfile(output_folder_name, ...
-%     sprintf('plot_abs_g1_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-% saveas(gcf, save_filename1);
-% fprintf('Saved figure: %s\n', save_filename1);
-
-%% 5. グラフ2: abs(g2) vs gap for each gap_gap
-% figure('Name','abs(g2) vs gap for each gap\_gap');
-% hold on; grid on;
-
-% for jGapGap = 1:ngapgap
-%     plot(gap_nm_values, G2_abs_2D(:, jGapGap), '-o', ...
-%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-% end
-
-% xlabel('gap (nm)');
-% ylabel('abs(g2)');
-% title('abs(g2) vs gap for each gap\_gap');
-% legend('show');
-
-% % 保存
-% save_filename2 = fullfile(output_folder_name, ...
-%     sprintf('plot_abs_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-% saveas(gcf, save_filename2);
-% fprintf('Saved figure: %s\n', save_filename2);
-
-%% 6. グラフ3: (abs(g1)+abs(g2)) vs gap for each gap_gap
-% figure('Name','(abs(g1)+abs(g2)) vs gap for each gap\_gap');
-% hold on; grid on;
-
-% for jGapGap = 1:ngapgap
-%     plot(gap_nm_values, G_abs_sums_2D(:, jGapGap), '-o', ...
-%         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
-% end
-
-% xlabel('gap (nm)');
-% ylabel('(abs(g1)+abs(g2))');
-% title('(abs(g1)+abs(g2)) vs gap for each gap\_gap');
-% legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g1) * gap');
+title('abs(g1) * gap vs gap for each gap\_gap');
+legend('show');
 
 % 保存
-% save_filename3 = fullfile(output_folder_name, ...
-%     sprintf('plot_abs_g1_plus_g2_vs_gap_for_each_gapgap_%s.png', timestamp_str));
-% saveas(gcf, save_filename3);
-% fprintf('Saved figure: %s\n', save_filename3);
+save_filename1 = fullfile(output_folder_name, ...
+    sprintf('plot_abs_g1_times_gap_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+saveas(gcf, save_filename1);
+fprintf('Saved figure: %s\n', save_filename1);
 
-%% 7. グラフ4: (abs(g1)+abs(g2))*gap vs gap for each gap_gap
-figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap\_gap');
+%% 5. グラフ2: abs(g2) * gap vs gap for each gap_gap
+figure('Name','abs(g2) * gap vs gap for each gap\_gap');
+hold on; grid on;
+
+for jGapGap = 1:ngapgap
+    plot(gap_nm_values, G2_abs_2D(:, jGapGap) .* gap_nm_values', '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+
+xlabel('gap (nm)');
+ylabel('abs(g2) * gap');
+title('abs(g2) * gap vs gap for each gap\_gap');
+legend('show');
+
+% 保存
+save_filename2 = fullfile(output_folder_name, ...
+    sprintf('plot_abs_g2_times_gap_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+saveas(gcf, save_filename2);
+fprintf('Saved figure: %s\n', save_filename2);
+
+%% 6. グラフ3: abs(g1) * gap の gap_gap の中での最大値 vs gap
+figure('Name','abs(g1) * gap with best gap\_gap vs gap');
+hold on; grid on;
+
+G1_abs_times_gap_max_over_gapgap = zeros(ngap,1);
+best_gapgap_indices_for_G1 = zeros(ngap, 1); % Store the best gap_gap index
+
+for iGap = 1:ngap
+    [G1_abs_times_gap_max_over_gapgap(iGap), best_gapgap_indices_for_G1(iGap)] = ...
+        max(G1_abs_2D(iGap,:) .* gap_nm_values(iGap));
+    
+end
+
+plot(gap_nm_values, G1_abs_times_gap_max_over_gapgap, '-o', 'DisplayName', 'Max (abs(g1) * gap)');
+
+xlabel('gap (nm)');
+ylabel('abs(g1) * gap with best gap\_gap');
+title('abs(g1) * gap with best gap\_gap vs gap');
+
+% 保存
+save_filename3 = fullfile(output_folder_name, ...
+    sprintf('plot_max_abs_g1_times_gap_vs_gap_%s.png', timestamp_str));
+saveas(gcf, save_filename3);
+fprintf('Saved figure: %s\n', save_filename3);
+
+
+%% 7. グラフ4: abs(g2) * gap の gap_gap の中での最大値 vs gap
+figure('Name','abs(g2) * gap with best gap\_gap vs gap');
+hold on; grid on;
+
+G2_abs_times_gap_max_over_gapgap = zeros(ngap,1);
+best_gapgap_indices_for_G2 = zeros(ngap,1);
+
+for iGap = 1:ngap
+    [G2_abs_times_gap_max_over_gapgap(iGap), best_gapgap_indices_for_G2(iGap)] = ...
+        max(G2_abs_2D(iGap,:) .* gap_nm_values(iGap));
+end
+
+
+plot(gap_nm_values, G2_abs_times_gap_max_over_gapgap, '-o', 'DisplayName', 'Max (abs(g2) * gap)');
+
+
+xlabel('gap (nm)');
+ylabel('abs(g2) * gap with best gap\_gap');
+title('abs(g2) * gap with best gap\_gap vs gap');
+
+% 保存
+save_filename4 = fullfile(output_folder_name, ...
+    sprintf('plot_max_abs_g2_times_gap_vs_gap_%s.png', timestamp_str));
+saveas(gcf, save_filename4);
+fprintf('Saved figure: %s\n', save_filename4);
+
+%% 8. グラフ5: (abs(g1) + abs(g2)) * gap vs gap for each gap_gap
+figure('Name','(abs(g1)+abs(g2)) * gap vs gap for each gap\_gap');
 hold on; grid on;
 
 for jGapGap = 1:ngapgap
@@ -157,12 +183,38 @@ for jGapGap = 1:ngapgap
 end
 
 xlabel('gap (nm)');
-ylabel('(abs(g1)+abs(g2)) * gap');
-title('(abs(g1)+abs(g2)) * gap vs gap for each gap\_gap');
+ylabel('(abs(g1) + abs(g2)) * gap');
+title('(abs(g1) + abs(g2)) * gap vs gap for each gap\_gap');
 legend('show');
 
 % 保存
-save_filename4 = fullfile(output_folder_name, ...
-    sprintf('abs_sum_g_times_gap_vs_gap_for_each_gapgap_%s_new.png', timestamp_str));
-saveas(gcf, save_filename4);
-fprintf('Saved figure: %s\n', save_filename4);
+save_filename5 = fullfile(output_folder_name, ...
+    sprintf('plot_abs_g1_plus_g2_times_gap_vs_gap_for_each_gapgap_%s.png', timestamp_str));
+saveas(gcf, save_filename5);
+fprintf('Saved figure: %s\n', save_filename5);
+
+%% 9. グラフ6: (abs(g1) + abs(g2)) * gap の gap_gap の中での最大値 vs gap
+figure('Name','(abs(g1) + abs(g2)) * gap with best gap\_gap vs gap');
+hold on; grid on;
+
+G_abs_sums_times_gap_max_over_gapgap = zeros(ngap,1);
+best_gapgap_indices_for_sums = zeros(ngap,1);
+
+
+for iGap = 1:ngap
+    [G_abs_sums_times_gap_max_over_gapgap(iGap), best_gapgap_indices_for_sums(iGap)] = ...
+        max(G_abs_sums_times_gap_2D(iGap,:));
+end
+
+plot(gap_nm_values, G_abs_sums_times_gap_max_over_gapgap, '-o', 'DisplayName', 'Max ((abs(g1) + abs(g2)) * gap)');
+
+
+xlabel('gap (nm)');
+ylabel('(abs(g1) + abs(g2)) * gap with best gap\_gap');
+title('(abs(g1) + abs(g2)) * gap with best gap\_gap vs gap');
+
+% 保存
+save_filename6 = fullfile(output_folder_name, ...
+    sprintf('plot_max_abs_g1_plus_g2_times_gap_vs_gap_%s.png', timestamp_str));
+saveas(gcf, save_filename6);
+fprintf('Saved figure: %s\n', save_filename6);
