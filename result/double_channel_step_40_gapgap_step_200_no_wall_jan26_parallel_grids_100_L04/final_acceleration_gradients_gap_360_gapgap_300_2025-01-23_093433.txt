@@ -1,0 +1,9 @@
+G_best (abs): 0.772466
+G1_best (abs): 0.430276
+G2_best (abs): 0.342230
+g_best (complex) = 0.7680 + 0.0830i
+g1_best (complex) = 0.4282 + 0.0423i
+g2_best (complex) = 0.3398 + 0.0406i
+E_max: 4.734690
+(abs(g1)+abs(g2))*gap: 278.102226
+abs(g1+g2)*gap: 278.087827
