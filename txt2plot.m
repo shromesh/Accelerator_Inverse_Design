@@ -118,12 +118,12 @@ function plot_with_nan_handling(x_values, y_matrix, gap_gap_vals, ...
             nLines = nLines + 1;
         end
     end
-    xlabel(x_label);
-    ylabel(y_label);
-    title(title_str);
+    xlabel(x_label, 'FontSize', 16);
+    ylabel(y_label, 'FontSize', 16);
+    title(title_str, 'FontSize', 16);
 
     if nLines > 1
-        legend('show', 'Location','best');
+        legend('show', 'Location','best', 'FontSize', 16);
     end
     
     saveas(gcf, save_path);
@@ -135,9 +135,9 @@ function plot_max_over_gapgap(x_values, y_matrix, x_label, y_label, title_str, s
     hold on; grid on;
     max_vals = max(y_matrix, [], 2, 'omitnan');
     plot(x_values, max_vals, '-o');
-    xlabel(x_label);
-    ylabel(y_label);
-    title(title_str);
+    xlabel(x_label, 'FontSize', 16);
+    ylabel(y_label, 'FontSize', 16);
+    title(title_str, 'FontSize', 16);
     saveas(gcf, save_path);
 end
 
@@ -151,11 +151,11 @@ function plot_max_over_gapgap_with_single(x_values, y_matrix, single_values, ...
     plot(x_values, max_vals, '-o', 'DisplayName', legend_dc);
     plot(x_values, single_values, '-o', 'DisplayName', legend_sg);
     
-    xlabel(x_label);
-    ylabel(y_label);
-    title(title_str);
+    xlabel(x_label, 'FontSize', 16);
+    ylabel(y_label, 'FontSize', 16);
+    title(title_str, 'FontSize', 16);
     
-    legend('show', 'Location','best');
+    legend('show', 'Location','best', 'FontSize', 16);
     saveas(gcf, save_path);
 end
 
@@ -164,9 +164,9 @@ function plot_single_only(x_values, single_values, x_label, y_label, title_str, 
     figure('Name', title_str);
     hold on; grid on;
     plot(x_values, single_values, '-o');
-    xlabel(x_label);
-    ylabel(y_label);
-    title(title_str);
+    xlabel(x_label, 'FontSize', 16);
+    ylabel(y_label, 'FontSize', 16);
+    title(title_str, 'FontSize', 16);
     saveas(gcf, save_path);
 end
 
