@@ -4,438 +4,290 @@ addpath(genpath('./'));                     % add the whole directory to path, i
 c0 = 1;                                     % speed of light m/s (normalized to 1)
 lambda0 = 2;                                % central wavelength (um)
 
-skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = true;                       % plotting during the run?
-
-
-alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
-a = 3;                                     % smooth-max weight factor (see paper)
-beta = 0.5;                                 % ratio of electron speed to speed of light
-
-in_material = false;                        % evaluate E_max in material? or in surrounding regions. (NOTE: it doesn't work well, I would suggest just evaluating in optimization region)
-starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
-
-% grids_in_lam = 75;                         % number of grid points in a free space wavelength
-grids_in_lam = 100;                         % number of grid points in a free space wavelength
-gap_nm_values = 360;                % gap size in nm variations with step of 10
-
 N = 4000;                                   % number of iterations
+display_plots = true;                       % プロット＆動画を作るなら true に
 
+skip = 30;                                  % 30 ループに1回描画・動画に書き込み
+alpha = 5e2;
+a = 3;
+beta = 0.5;
+in_material = false;
+starting = 0;
+grids_in_lam = 100;
+gap_nm_values = 360;                        % gap size in nm
 timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-L = 0.4;                                   % size of optimization region (um)
-% NOTE: if this ^ is too big and the epsilon is too large, the simulations
-% can diverge.  This is because there are many degrees of freedom and
-% resonance can occur very strongly. Need to try different values and see
-% what works.
-npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
-
-% relative permittivity of material region.  uncomment to select
-eps = 3.4363^2;     % Si 2um
-%eps = 1.4381^2;      % fused silica 2um
-% eps = 1.9834^2;     % Si3N4
-%eps = 1.9^2;        % GaOx
-
-nmax = sqrt(eps);    % refractive index of material region
-
-gamma = 0.9;                             % 'momentum term', see paper.  Set between 0-1, can speed up simulation in some cases
-
+L = 0.4;
+npml = 10;
+eps = 3.4363^2;                             % 例: Si (2um)
+nmax = sqrt(eps);
+gamma = 0.9;
 output_folder_name = 'result/single_channel_step_40_jan23_parallel_grids_100_L04';
 
-%% SET OTHER CONSTANTS (DON'T CHANGE)
-dlx = lambda0/grids_in_lam;                 % grid size along electron trajectory axis
-dly  = dlx;                                 % spacing in the perpendicular direction
-
-G_best_values = zeros(length(gap_nm_values), 1);                         % Array to store G_best for each gap size
-G_best_times_gap_values = zeros(length(gap_nm_values), 1);               % Array to store G_best * gap for each gap size
+dlx = lambda0/grids_in_lam;
+dly = dlx;
+G_best_values = zeros(length(gap_nm_values), 1);
+G_best_times_gap_values = zeros(length(gap_nm_values), 1);
 
 for idx = 1:length(gap_nm_values)
     gap_nm = gap_nm_values(idx);
     
-    pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
-    spc_pts = floor(grids_in_lam/4);            % number of grid points between source and structure
-    gap_pts = floor(gap_nm/1000/dlx);           % number of grid points in the gap
-    Lpts = round(L/dlx);                        % number of points in the optimization region
+    pos_src = floor(npml + grids_in_lam/4);
+    spc_pts = floor(grids_in_lam/4);
+    gap_pts = floor(gap_nm/1000/dlx);
+    Lpts    = round(L/dlx);
     
-    Nx = ceil(lambda0*beta/dlx);                % number of grid points in x
-    Ny = gap_pts+2*(pos_src + Lpts + spc_pts);  % number of grid points perpendicular to trajectory
+    Nx = ceil(lambda0*beta/dlx);
+    Ny = gap_pts + 2*(pos_src + Lpts + spc_pts);
     
     nx = floor(Nx/2);
     ny = floor(Ny/2);
     
-    % First compute G maximization, then do G/E_max maximization (for comparison)
     for min_G_Emax = 0
+        ER  = ones(Nx,Ny);
+        MuR = ones(Nx,Ny);
+        ER_best = ones(Nx,Ny);
         
-        %% This section defines the input parameters that my FDFD code needs to run.
-        %  see the FDFD.m code or FDFD_TFSF.m for a more detailed explanation.
+        b = zeros(Nx,Ny);
+        b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + Lpts + spc_pts) = 1;
+        kinc = [0,1];
+        RES = [dlx,dly];
+        BC = [-1,-1];
+        NPML = [0,0,npml,npml];
+        Pol= 'Hz';
+        spc = spc_pts*dly;
+        gap = gap_pts*dly;
         
-        ER  = ones(Nx,Ny);                      % relative permittivity grid map
-        MuR = ones(Nx,Ny);                      % relative permeability grid map
-        ER_best = ones(Nx,Ny);                  % storing the best permittivity map
-        A_best = 0;
-        
-        b = zeros(Nx,Ny);                       % TFSF map.  read up on total-field scattered-field if you are interested.
-        b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + Lpts + spc_pts) = 1;  % define the total field region on the grid
-        kinc = [0,1];                           % plane wave incident direction (perp. to electron)
-        
-        RES = [dlx,dly];                        % grid resolution vector
-        BC = [-1,-1];                           % boundary condition vector (periodic if -1)
-        NPML = [0,0,npml,npml];                 % PML cells on the boundaries (x-,x+,y-,y+)
-        Pol= 'Hz';                              % field polarization
-        spc = spc_pts*dly;                      % space between source and objects in um
-        gap = gap_pts*dly;                      % gap size in um
-        
-        xs = dlx*(1:Nx);                        % constant to compute the eta object.  x-pos along gap.
-        
-        delta_device = zeros(Nx,Ny);            % delta_device is 0 where the permittivity doesn't change.  otherwise it is 1 in the optimization region.
+        delta_device = zeros(Nx,Ny);
         delta_device(1:Nx, pos_src + spc_pts : pos_src + spc_pts + Lpts) = 1;
-        delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + Lpts) = 1;
-        delta_device_vec = delta_device(:);     % vector version of delta_device (matlab likes this better)
+        delta_device(1:Nx, ...
+            pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + Lpts) = 1;
         
-        % define the eta vector field.  see the paper for more details.
         eta = zeros(Nx,Ny);
-        eta(:,ny) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
+        eta(:, ny) = 1/Nx * exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
         eta_vec = eta(:);
         
-        % define stating permittivity based on what value the 'starting variable'
-        % holds
-        for i = (1:Nx)
-            for j = (1:Ny)
-                if (delta_device(i,j) == 1)
-                    if (starting == 1)
-                        ER(i,j) = rand*(eps-1)+1;
-                    elseif (starting == 2)
-                        ER(i,j) = eps/2+0.5;
+        % 初期値設定
+        for i = 1:Nx
+            for j = 1:Ny
+                if delta_device(i,j) == 1
+                    if starting == 1
+                        ER(i,j) = rand * (eps - 1) + 1;
+                    elseif starting == 2
+                        ER(i,j) = eps/2 + 0.5;
                     else
+                        % starting == 0 なら 1 のまま
                     end
                 end
             end
         end
         
-        % run the simulation with accelerator input (plane wave) but all empty space
-        [fields, ~] = FDFD_TFSF(ones(Nx,Ny),MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-        
-        % get the fields and the E0 (normalization)
+        % 空間全体真空で FDFD を回して E0 を取得
+        [fields, ~] = FDFD_TFSF(ones(Nx,Ny), MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
         Ex = fields.Ex;
         Ey = fields.Ey;
         E0 = sqrt(abs(Ex(nx, ny))^2 + abs(Ey(nx, ny))^2);
-        % display(E0);
-        % define variables to store the iteration progress
-        G_best = 0;                 % best gradient
-        Gs = zeros(N,1);            % gradients over iteration
-        E_maxs = zeros(N,1);        % max E-fields over iteration
-        G_by_Es = zeros(N,1);       % G/E over iteration, computed directly
-        G_by_Sa = zeros(N,1);       % G/E over iteration, computed with smooth-max
         
-        phis = zeros(N,1);          % phase of the maximum accelerating input plane wave
-        phi = 0;                    % assume input light phase of 0 to start
-        AVM_prev = zeros(Nx,Ny);    % store previous sensitivity information for momentum update
+        G_best = 0;
+        Gs     = zeros(N,1);
+        E_maxs = zeros(N,1);
+        G_by_Es = zeros(N,1);
+        G_by_Sa = zeros(N,1);
+        phis   = zeros(N,1);
+        AVM_prev = zeros(Nx,Ny);
         
+        %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+        % 動画保存 (display_plots == true) → MP4 出力
         if display_plots
-            figure(1);                  % open a figure to plot
-        end
-        
-        if ~min_G_Emax
-            display('working on gradient maximized structure');
-        else
-            display('working on acceleration factor maximized structure');
-        end
-        upd = textprogressbar(N);
-        
-        for j = (1:N)
+            figure_handle = figure(1);
             
-            upd(j);
-            % original simulation (structure in accelerator mode)
-            [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-            % get fields
-            Ex = fields.Ex/E0;
-            Ey = fields.Ey/E0;
+            % .mp4 形式で出力する
+            videoFileName = sprintf('%s/optimize_iteration_video_gap_%d_%s.mp4',...
+                output_folder_name, gap_nm, timestamp);
+            v = VideoWriter(videoFileName,'MPEG-4');
             
-            % compute gradient (see paper)
+            % オプション設定 (必要に応じて)
+            v.FrameRate = 5;  % 例: 5fps
+            v.Quality   = 95; % 例: 画質指定(0〜100)
+            
+            open(v);
+        end
+        %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+        
+        for j = 1:N
+            [fields, extra] = FDFD_TFSF(ER, MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
+            Ex = fields.Ex / E0;
+            Ey = fields.Ey / E0;
             g = sum(sum(eta.*Ex));
             G = real(g);
-            
-            % get phase
             phis(j) = angle(g);
             
-            % get numerical spatial derivative operators
             DEY = extra.derivatives.DEY;
             DEX = extra.derivatives.DEX;
-            
-            % turn the permittivity map into a vecor.  Then compute some
-            % quantities for later.
             ER_vec = ER(:);
-            delta_ER = ER > eps/2;
-            delta_ER_vec = delta_ER(:);
-            chi = delta_device.*(ER - ones(Nx,Ny));
+            chi = delta_device .* (ER - 1);
             
-            % compute operators from maxwell's eqs. turning Mz into Jx and Jy (Hz into Ex and Ey)
-            Ox = -1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEY;
-            Oy =  1i*lambda0/2/pi/c0*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEX;
+            Ox = -1i * lambda0/(2*pi*c0) * spdiags(1./ER_vec, 0, Nx*Ny, Nx*Ny) * DEY;
+            Oy =  1i * lambda0/(2*pi*c0) * spdiags(1./ER_vec, 0, Nx*Ny, Nx*Ny) * DEX;
             
-            % create the adjoint vector corresponding to eta (again, see paper)
             eta_aj = [eta_vec; zeros(Nx*Ny,1)];
             
-            % if you are evaluating E_max in the material, compute |E| there,
-            % otherwise, compute |E| in the full optimization region.
-            if (in_material)
-                E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
+            if in_material
+                E_abs = (chi/(eps-1)) .* sqrt(abs(Ex).^2 + abs(Ey).^2);
             else
-                E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
+                E_abs = delta_device .* sqrt(abs(Ex).^2 + abs(Ey).^2);
             end
             
-            % compute auxiliary vectors for later.  (too complicated to explain
-            % here.  ask me in person if you're interested).
             x_abs = E_abs(:);
             alpha_vec = exp(x_abs*a);
             alpha_T_1 = sum(alpha_vec);
-            Sa = sum(alpha_vec.*x_abs)/alpha_T_1;
-            
-            X_vec = conj(Ex(:))./x_abs;
-            Y_vec = conj(Ey(:))./x_abs;
-            
+            Sa = sum(alpha_vec.*x_abs) / alpha_T_1;
             
             x = [Ex(:); Ey(:)];
-            P = [speye(Nx*Ny) speye(Nx*Ny)];
-            z = conj(x./[x_abs;x_abs]);
+            z = conj(x ./ [x_abs; x_abs]);
             z(isnan(z)) = 0;
             z(isinf(z)) = 0;
-            spdiagz = spdiags(z,0,Nx*Ny*2,Nx*Ny*2);
             
-            R = (P*spdiagz);
-            %R(isnan(R)) =  0;
-            %R = [diag(z(1:Nx*Ny)) diag(z(Nx*Ny+1:end))];
-            S = real(1/alpha_T_1*(speye(Nx*Ny) + a*spdiags(x_abs,0,Nx*Ny,Nx*Ny) - a*sum(alpha_vec.*x_abs)/alpha_T_1*speye(Nx*Ny)));
+            spdiagz = spdiags(z, 0, Nx*Ny*2, Nx*Ny*2);
+            P = [speye(Nx*Ny), speye(Nx*Ny)];
+            R = P * spdiagz;
+            
+            S = real(1/alpha_T_1*(speye(Nx*Ny) + a*spdiags(x_abs,0,Nx*Ny,Nx*Ny) ...
+                - a*sum(alpha_vec.*x_abs)/alpha_T_1*speye(Nx*Ny)));
             sigma = transpose(alpha_vec)*S*R;
             sigma(isnan(sigma)) = 0;
-            b_aj1 = transpose(G/Sa^2*sigma);
-            b_aj2 = -eta_aj/Sa;
             
-            % construct final adjoint source
-            if (min_G_Emax)
+            b_aj1 = transpose(G/Sa^2 * sigma);
+            b_aj2 = -eta_aj / Sa;
+            
+            if min_G_Emax
                 b_aj = b_aj1 + b_aj2;
             else
                 b_aj = -eta_aj;
             end
-            b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
-            b_aj(isnan(b_aj)) = 0 ;
             
-            % get the factored form of the system operator.
+            b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end), [Nx,Ny]);
+            b_aj(isnan(b_aj)) = 0;
+            
             AF = extra.AF;
-            
-            % run simulation with adjoint source.
             [fields_aj, ~] = FDFD_fast(ER,MuR,RES,NPML,BC,lambda0,Pol,b_aj,AF);
+            x_aj = fields_aj.x / E0;
+            Ex_aj = reshape(x_aj(1:Nx*Ny), [Nx,Ny]);
+            Ey_aj = reshape(x_aj(Nx*Ny+1:end), [Nx,Ny]);
             
-            % get fields
-            x_aj = fields_aj.x/E0;
-            Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
-            Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
+            AVM = -real(Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device);
             
-            % compute sensitivity information
-            AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
-            
-            % record relevant variables in the arrays
-            E_max = max(max((E_abs)));
-            E_maxs(j) = E_max;
+            E_abs_val = max(E_abs(:));
+            E_maxs(j) = E_abs_val;
             Gs(j) = G;
-            G_by_Es(j) = G/E_max;
-            G_by_Sa(j) = G/Sa;
+            G_by_Es(j) = G / E_abs_val;
+            G_by_Sa(j) = G / Sa;
             
-            % update permittivity
             ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
-            
-            % update the previous sensitivity map
             AVM_prev = AVM;
-            
-            % if permittivity out of bounds, reset inside the correct bounds.
-            ER(ER < 1) = 1;
+            ER(ER < 1)   = 1;
             ER(ER > eps) = eps;
             
-            % record best permittivity if applicable
-            if (G > G_best)
+            if G > G_best
                 G_best = G;
                 ER_best = ER;
             end
             
-            % plot stuff without too much hastle, display % done
-            if (display_plots && mod(j,skip) == 0)
-                %    perc_done = j/N*100
+            %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+            % 30 ループに1回のみ描画＆動画書き込み
+            if display_plots && mod(j, skip) == 0
+                figure(1);
                 clf;
-                subplot(2,2,1);
-                disp = [];
-                for k = (1:5)
-                    disp = [disp; real(ER)];
-                end
                 
-                imagesc(disp,[1,eps])
+                %------- 相対誘電率をプロット -------
+                subplot(2,2,1);
+                disp_mat = [];
+                for kFrame = 1:5
+                    disp_mat = [disp_mat; real(ER)];
+                end
+                imagesc(disp_mat,[1,eps])
                 colormap(flipud(gray))
                 title('relative permittivity')
+                colorbar()
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
-                colorbar()
                 
+                %------- 加速勾配 G の履歴 -------
                 subplot(2,2,2);
-                colorbar()
                 plot(Gs(1:j),'k');
                 xlabel('iteration number')
                 ylabel('gradient (E_0)')
                 title('acceleration gradient at \phi = 0')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
+                grid on;
                 
+                %------- G/E の履歴 -------
                 subplot(2,2,3);
-                plot((1:j),G_by_Es(1:j));
-                hold all;
-                plot((1:j),G_by_Sa(1:j));
+                plot((1:j), G_by_Es(1:j));
+                hold on;
+                plot((1:j), G_by_Sa(1:j));
                 xlabel('iteration number')
                 ylabel('G/|E|max')
                 title('acceleration factor')
-                legend({'actual','smooth-max'})
+                legend({'actual','smooth-max'},'Location','Best')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
+                grid on;
                 
-                
-                subplot(2,2,4); hold all;
-                plot((1:j),phis(1:j));
-                plot((1:j),zeros(j,1));
+                %------- 位相の履歴 -------
+                subplot(2,2,4); hold on;
+                plot((1:j), phis(1:j));
+                plot((1:j), zeros(j,1));
                 xlabel('iteration number');
                 ylabel('\phi');
-                legend({'computed','\phi=0 (target)'})
+                legend({'computed','\phi=0 (target)'},'Location','Best')
                 title('acceleration phase (\phi)')
                 set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
                 set(gca,'FontSize',22,'fontWeight','normal')
+                grid on;
                 
-                pause(0.001);
+                drawnow;
+                
+                % フレーム書き込み
+                frame = getframe(gcf);
+                writeVideo(v, frame);
             end
+            %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
         end
         
-        
-        %% POST PROCESSING STUFF
-        
-        % create final field display
-        field_disp = [];
-        ER_disp = [];
-        for i = (1:5)
-            field_disp = [field_disp;Ex];
-            ER_disp = [ER_disp;  (ER-ones(Nx,Ny))*10000];
+        if display_plots
+            close(v);  % 動画ファイルを閉じる
         end
         
-        % plot movie
-        NT = 0;         % number of time steps
-        %figure(2);
-        for t = (1:NT)
-            clf;
-            colormap(redbluecmap)
-            imagesc(transpose(ER_disp + real(field_disp*exp(-1i*t/40))),[-5,5]); pause(0.0001);
-        end
+        %% POST PROCESSING
+        eps_avg = (eps + 1)/2;
+        ER(ER < eps_avg)    = 1;
+        ER(ER >= eps_avg)   = eps;
+        ER_best(ER_best < eps_avg)   = 1;
+        ER_best(ER_best >= eps_avg)  = eps;
         
-        % force the permittivity distribution binary for ER and ER_best
-        eps_avg = (eps+1)/2;
-        ER(ER<eps_avg) = 1;
-        ER(ER>=eps_avg) = eps;
-        ER_best(ER_best<eps_avg) = 1;
-        ER_best(ER_best>=eps_avg) = eps;
+        [fields_best, extra_best] = FDFD_TFSF(ER_best, MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
+        Ex_best = fields_best.Ex / E0;
+        Ey_best = fields_best.Ey / E0;
         
-        % do another simulation of the binary distribution for ER
-        % [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-        % Ex = fields.Ex/E0;
-        % Ey = fields.Ey/E0;
+        g_best = sum(sum(eta .* Ex_best));
+        G_best = abs(g_best);
         
-        % % compute the gradient
-        % g_ER = sum(sum(eta.*Ex));
-        % G_ER = abs(g_ER); % why abs?
-        
-        % do another simulation of the binary distribution for ER_best
-        [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
-        Ex_best = fields_best.Ex/E0;
-        Ey_best = fields_best.Ey/E0;
-        
-        % compute the gradient for ER_best
-        g_best = sum(sum(eta.*Ex_best));
-        G_best = abs(g_best); % why abs?
-        % G_best = real(g_best); % why abs?
-        
-        % calculate E_max for ER_best
-        E_abs_best = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+        E_abs_best = delta_device .* sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
         E_max_best = max(E_abs_best(:));
         
-        % save both gradients into the same file
-        fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', output_folder_name, gap_nm, timestamp, gap_nm);
+        fname = sprintf('%s/final_acceleration_gradients_gap_%d_%s_gap_%d.txt', ...
+            output_folder_name, gap_nm, timestamp, gap_nm);
         fileID = fopen(fname, 'w');
-        % fprintf(fileID, 'Gradient for ER: %f\n', G_ER);
         fprintf(fileID, 'G_best: %f\n', G_best);
         fprintf(fileID, 'g_best: %f + %fi\n', real(g_best), imag(g_best));
         fprintf(fileID, 'E_max: %f\n', E_max_best);
-        fprintf(fileID, 'L: %f\n', L); % Output the value of L
-        % fprintf(fileID, 'AVM: %f\n', AVM); % Output the AVM variable
+        fprintf(fileID, 'L: %f\n', L);
         fclose(fileID);
-        fprintf('File saved as: %s\n', fname);
         
-        % store G_best value for this gap size
         G_best_values(idx) = G_best;
         G_best_times_gap_values(idx) = G_best * gap_nm;
-        
-        % display and save final structure
-        % finalFig = figure('Name','Final Structure','Visible','on');
-        
-        % binary distributionにした後のERで，繰り返し連結用の変数を初期化
-        % disp_final = [];
-        % for k = 1:5
-        %     % ER を縦方向に 5 回連結
-        %     disp_final = [disp_final; real(ER)];
-        % end
-        
-        % % 繰り返した配列を可視化
-        % imagesc(disp_final, [1, eps]);  % 2値化後なので [1, eps] の範囲
-        % colormap(flipud(gray));
-        % axis equal tight;
-        % title('Final Binarized Structure');
-        % colorbar();
-        
-        % % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        % figName = sprintf('%s/final_structure_%s_gap_%d.png', output_folder_name, timestamp, gap_nm);
-        % saveas(finalFig, figName);  % 画像保存
-        
-        % display and save best structure
-        if display_plots
-            bestFig = figure('Name','Best Structure','Visible','on');
-        else
-            bestFig = figure('Name','Best Structure','Visible','off');
-        end
-        
-        % 繰り返し連結用の変数を初期化
-        disp_best = [];
-        for k = 1:5
-            % ER_best を縦方向に 5 回連結
-            disp_best = [disp_best; real(ER_best)];
-        end
-        
-        % 繰り返した配列を可視化
-        imagesc(disp_best, [1, eps]);
-        colormap(flipud(gray));
-        axis equal tight;
-        title(sprintf('Best Structure (gap = %d nm)', gap_nm));
-        colorbar();
-        
-        % タイムスタンプ入りの画像ファイル名 (PNG 等)
-        figNameBest = sprintf('%s/best_structure_gap_%d_%s_gap_%d.png', output_folder_name, gap_nm, timestamp, gap_nm);
-        saveas(bestFig, figNameBest);  % 画像保存
     end
 end
 
-% Plot G_best for each gap size and save the figure
-figure;
-plot(gap_nm_values, G_best_values, '-o');
-xlabel('gap (nm)');
-ylabel('abs(g)');
-title('abs(g) vs gap');
-grid on;
-saveas(gcf, sprintf('%s/G_best_vs_gap_size_%s.png', output_folder_name, timestamp));
-
-% Plot G_best * gap for each gap size and save the figure
-figure;
-plot(gap_nm_values, G_best_times_gap_values, '-o');
-xlabel('gap (nm)');
-ylabel('abs(g) * gap');
-title('abs(g) * gap vs gap');
-grid on;
-saveas(gcf, sprintf('%s/G_best_times_gap_vs_gap_size_%s.png', output_folder_name, timestamp));
+% 以降, 最終的なプロットなど ...
