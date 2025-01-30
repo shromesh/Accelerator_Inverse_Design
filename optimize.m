@@ -5,7 +5,7 @@ c0 = 1;                                     % speed of light m/s (normalized to 
 lambda0 = 2;                                % central wavelength (um)
 
 skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
-display_plots = false;                       % plotting during the run?
+display_plots = true;                       % plotting during the run?
 
 
 alpha = 5e2;                                % step size in permittivity (~1e2-1e4 works well)
@@ -17,15 +17,10 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 
 % grids_in_lam = 75;                         % number of grid points in a free space wavelength
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
-gap_nm_values = 40:40:1000;                % gap size in nm variations with step of 10
+gap_nm_values = 360;                % gap size in nm variations with step of 10
 
 N = 4000;                                   % number of iterations
-% N = 100;                                   % number of iterations
-% 3000回くらいで収束かも
-% gap_nm_values = 25:25:1000;
-% gap_nm_values = [200, 250, 300, 350, 400, 450, 500, 550, 600, 650];
-% gap_nm_values = [600];
-parpool('local', 10);
+
 timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
 L = 0.4;                                   % size of optimization region (um)
 % NOTE: if this ^ is too big and the epsilon is too large, the simulations
@@ -53,7 +48,7 @@ dly  = dlx;                                 % spacing in the perpendicular direc
 G_best_values = zeros(length(gap_nm_values), 1);                         % Array to store G_best for each gap size
 G_best_times_gap_values = zeros(length(gap_nm_values), 1);               % Array to store G_best * gap for each gap size
 
-parfor idx = 1:length(gap_nm_values)
+for idx = 1:length(gap_nm_values)
     gap_nm = gap_nm_values(idx);
     
     pos_src = floor(npml+grids_in_lam/4);       % number of grid points between left edge and source
@@ -444,5 +439,3 @@ ylabel('abs(g) * gap');
 title('abs(g) * gap vs gap');
 grid on;
 saveas(gcf, sprintf('%s/G_best_times_gap_vs_gap_size_%s.png', output_folder_name, timestamp));
-
-delete(gcp('nocreate'));
