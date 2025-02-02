@@ -9,7 +9,7 @@ input_folder_name = 'result/double_channel_step_40_gapgap_step_200_no_wall_jan26
 % シングルチャネルのテキストファイルが置かれているフォルダ
 single_channel_folder_name = 'result/single_channel_step_40_jan23_parallel_grids_100_L04';
 
-output_folder_name = 'result/normalized_jan27';
+output_folder_name = 'result/plot_feb2';
 
 % タイムスタンプ（保存ファイル名に付与すると便利）
 timestamp_str = datestr(now, 'yyyy-mm-dd_HHMMSS');
@@ -128,12 +128,16 @@ end
 saveas(gcf, save_path);
 end
 
-% (B) gap_gap の中で最大値を抽出 (1本線)
+% (B) gap_gap の中で最大値を抽出 (1本線を赤色でプロット)
 function plot_max_over_gapgap(x_values, y_matrix, x_label, y_label, title_str, save_path)
 figure('Name', title_str);
 hold on; grid on;
 max_vals = max(y_matrix, [], 2, 'omitnan');
-plot(x_values, max_vals, '-o');
+
+% デフォルトの色を取得
+co = get(groot, 'DefaultAxesColorOrder');
+
+plot(x_values, max_vals, '-o', 'Color', co(2, :));
 xlabel(x_label, 'FontSize', 16);
 ylabel(y_label, 'FontSize', 16);
 title(title_str, 'FontSize', 16);
