@@ -98,18 +98,23 @@ for idx = 1:length(gap_nm_values)
         %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
         % 動画保存 (display_plots == true) → MP4 出力
         if display_plots
-            figure_handle = figure(1);
-            
-            % .mp4 形式で出力する
-            videoFileName = sprintf('%s/optimize_iteration_video_gap_%d_%s.mp4',...
+            %--- 図1: 構造の 2D プロット用 ---
+            figure_handle_1 = figure(1);
+            videoFileName_1 = sprintf('%s/video_structure_gap_%d_%s.mp4',...
                 output_folder_name, gap_nm, timestamp);
-            v = VideoWriter(videoFileName,'MPEG-4');
+            v1 = VideoWriter(videoFileName_1,'MPEG-4');
+            v1.FrameRate = 5;
+            v1.Quality   = 95;
+            open(v1);
             
-            % オプション設定 (必要に応じて)
-            v.FrameRate = 5;  % 例: 5fps
-            v.Quality   = 95; % 例: 画質指定(0〜100)
-            
-            open(v);
+            %--- 図2: gradient グラフ用 ---
+            figure_handle_2 = figure(2);
+            videoFileName_2 = sprintf('%s/video_gradient_gap_%d_%s.mp4',...
+                output_folder_name, gap_nm, timestamp);
+            v2 = VideoWriter(videoFileName_2,'MPEG-4');
+            v2.FrameRate = 5;
+            v2.Quality   = 95;
+            open(v2);
         end
         %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
         
@@ -193,71 +198,54 @@ for idx = 1:length(gap_nm_values)
             end
             
             %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-            % 30 ループに1回のみ描画＆動画書き込み
+            % skip ループごとに 2つのウィンドウをそれぞれ描画 → 動画に書き込み
             if display_plots && mod(j, skip) == 0
+                %--- (1) 図1: 構造の2Dプロットを出力 ---
+                % 図1: relative permittivity の描画
                 figure(1);
                 clf;
-                
-                %------- 相対誘電率をプロット -------
-                subplot(2,2,1);
                 disp_mat = [];
                 for kFrame = 1:5
                     disp_mat = [disp_mat; real(ER)];
                 end
-                imagesc(disp_mat,[1,eps])
-                colormap(flipud(gray))
-                title('relative permittivity')
-                colorbar()
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                
-                %------- 加速勾配 G の履歴 -------
-                subplot(2,2,2);
-                plot(Gs(1:j),'k');
-                xlabel('iteration number')
-                ylabel('gradient (E_0)')
-                title('acceleration gradient at \phi = 0')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                grid on;
-                
-                %------- G/E の履歴 -------
-                subplot(2,2,3);
-                plot((1:j), G_by_Es(1:j));
-                hold on;
-                plot((1:j), G_by_Sa(1:j));
-                xlabel('iteration number')
-                ylabel('G/|E|max')
-                title('acceleration factor')
-                legend({'actual','smooth-max'},'Location','Best')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                grid on;
-                
-                %------- 位相の履歴 -------
-                subplot(2,2,4); hold on;
-                plot((1:j), phis(1:j));
-                plot((1:j), zeros(j,1));
-                xlabel('iteration number');
-                ylabel('\phi');
-                legend({'computed','\phi=0 (target)'},'Location','Best')
-                title('acceleration phase (\phi)')
-                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
-                set(gca,'FontSize',22,'fontWeight','normal')
-                grid on;
-                
+                imagesc(disp_mat, [1, eps]);
+                colormap(flipud(gray));
+                title('relative permittivity');
+                xlabel('pixel');   % ← x 軸に "pixel"
+                ylabel('pixel');   % ← y 軸に "pixel"
+                colorbar();
+                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal');
+                set(gca,'FontSize',22,'fontWeight','normal');
                 drawnow;
                 
-                % フレーム書き込み
-                frame = getframe(gcf);
-                writeVideo(v, frame);
+                frame1 = getframe(gcf);
+                writeVideo(v1, frame1);
+                
+                %--- (2) 図2: 勾配 G の履歴を出力 ---
+                figure(2);  % figure_handle_2 をアクティブに
+                clf;
+                plot(Gs(1:j),'k');
+                xlabel('iteration number')
+                ylabel('G')  % "gradient (E0)" から "G" に変更
+                title('acceleration gradient G')
+                set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
+                set(gca,'FontSize',22,'fontWeight','normal')
+                grid on;
+                drawnow;
+                
+                frame2 = getframe(gcf);
+                writeVideo(v2, frame2);
             end
             %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
         end
         
+        %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+        % 動画ファイルを閉じる (2つ分)
         if display_plots
-            close(v);  % 動画ファイルを閉じる
+            close(v1);
+            close(v2);
         end
+        %＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
         
         %% POST PROCESSING
         eps_avg = (eps + 1)/2;
@@ -290,4 +278,4 @@ for idx = 1:length(gap_nm_values)
     end
 end
 
-% 以降, 最終的なプロットなど ...
+% ... (以降はお好みで最終結果の処理/プロットなど)
