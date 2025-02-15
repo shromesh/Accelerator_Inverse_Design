@@ -1,329 +1,426 @@
-clear; close all; clc;
+addpath(genpath('./'));                     % add the whole directory to path, if not already done
 
-%% 1. gap, gap_gap のリスト
+%% SET PARAMETERS
+c0 = 1;                                     % speed of light m/s (normalized to 1)
+lambda0 = 2;                                % central wavelength (um)
+
+skip = 4;                                   % number of iteration frames between plots (higher->faster, lower->more plots)
+display_plots = false;                      % plotting during the run? (false にするとiteration中の表示を行わない)
+
+alpha = 5e2;                                % step size in permittivity (~1e2-e4 works well)
+a = 3;                                      % smooth-max weight factor (see paper)
+beta = 0.5;                                 % ratio of electron speed to speed of light
+
+in_material = false;                        % evaluate E_max in material? or in surrounding regions.
+starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> midway epsilon
+
+grids_in_lam = 100;                         % number of grid points in a free space wavelength
+
+%% 新たに追加: gap を変化させるための配列
 gap_nm_values = 40:40:1000;
+% gap_nm_values = [300, 400];
+
+%% gap_gap を変化させるための配列
+% gap_gap_nm_values = 100:100:1000;
 gap_gap_nm_values = 100:200:1000;
+% gap_gap_nm_values = [300, 400];
 
-% ダブルチャネルのテキストファイルが置かれているフォルダ
-input_folder_name = 'result/double_channel_step_40_gapgap_step_200_no_wall_jan26_parallel_grids_100_L04';
-% シングルチャネルのテキストファイルが置かれているフォルダ
-single_channel_folder_name = 'result/single_channel_step_40_jan23_parallel_grids_100_L04';
+N = 4000;                                   % number of iterations
+% N = 100;                                   % number of iterations
 
-output_folder_name = 'result/plot_feb2';
+parpool('local', 10);
+timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
+npml = 10;                                  % number of PML (absorbing region) points (need > 10 at least)
 
-% タイムスタンプ（保存ファイル名に付与すると便利）
-timestamp_str = datestr(now, 'yyyy-mm-dd_HHMMSS');
+% relative permittivity of material region.  uncomment to select
+eps = 3.4363^2;     % Si 2um
+% eps = 1.4381^2;    % fused silica 2um
+% eps = 1.9834^2;    % Si3N4
+% eps = 1.9^2;       % GaOx
 
-%% 2. ダブルチャネル用データ格納用の配列 (gap vs gap_gap)
+gamma = 0.9;                                % 'momentum term', see paper. 0-1
+
+%% 出力フォルダ名を設定
+output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
+
+% -------------------------------------------------------------
+% gap_nm_values, gap_gap_nm_values の長さ
 ngap    = length(gap_nm_values);
 ngapgap = length(gap_gap_nm_values);
+nComb   = ngap * ngapgap; % 全組み合わせ数
 
-G1_abs_2D = nan(ngap, ngapgap);
-G2_abs_2D = nan(ngap, ngapgap);
-G_abs_sums_2D = nan(ngap, ngapgap);
+% --- 事前に Nx, Ny を計算 (最初のパラメータセットで代表させる) ---
+dlx_pre = lambda0/grids_in_lam;
+gap_pts_pre = floor(gap_nm_values(1)/1000/dlx_pre);
+gap_gap_pts_pre = floor(gap_gap_nm_values(1)/1000/dlx_pre);
+Lpts_pre = round(0.4/dlx_pre);
+pos_src_pre = floor(npml+grids_in_lam/4);
+spc_pts_pre = floor(grids_in_lam/4);
+Nx_pre = ceil(lambda0*beta/dlx_pre);
+Ny_pre = 2*gap_pts_pre + 2*(pos_src_pre + Lpts_pre + spc_pts_pre) + gap_gap_pts_pre;
+% -------------------------------------------------------------
 
-%% 3. ダブルチャネルのテキストファイル読み込み
-for iGap = 1:ngap
-    gap_nm = gap_nm_values(iGap);
+% -------------------------------------------------------------
+%  1D の配列として用意
+G_best_values_1D             = zeros(nComb, 1);
+G_best_abs_sums_1D           = zeros(nComb, 1);
+G_best_values_times_gap_1D   = zeros(nComb, 1);
+G_best_abs_sums_times_gap_1D = zeros(nComb, 1);
+G_best_values_final_1D       = zeros(nComb, 1);
+G1_best_1D                  = zeros(nComb, 1);
+G2_best_1D                  = zeros(nComb, 1);
+g_best_complex_1D           = complex(zeros(nComb, 1), zeros(nComb, 1));
+g1_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
+g2_best_complex_1D          = complex(zeros(nComb, 1), zeros(nComb, 1));
+E_max_1D                    = zeros(nComb, 1);
+abs_g1_plus_g2_times_gap_1D = zeros(nComb, 1);
+abs_g_best_times_gap_1D     = zeros(nComb, 1);
+ER_best_1D                  = cell(nComb, 1); % Fix: Use cell array to store ER_best
+abs_g1_best_1D              = zeros(nComb, 1); % New: abs(g1)
+abs_g2_best_1D              = zeros(nComb, 1); % New: abs(g2)
+abs_sum_g_times_gap_1D      = zeros(nComb, 1); % New: (abs(g1)+abs(g2))*gap
+
+
+% -------------------------------------------------------------
+% ループ開始
+parfor k = 1:nComb % 1次元の parfor ループに変更
+    % --- 1次元インデックス k から idx, jGapGap を復元 ---
+    idx     = floor((k-1)/ngapgap) + 1;
+    jGapGap = mod(k-1, ngapgap) + 1;
     
-    for jGapGap = 1:ngapgap
-        gap_gap_nm = gap_gap_nm_values(jGapGap);
-        
-        file_pattern = sprintf('final_acceleration_gradients_gap_%d_gapgap_%d_*.txt', gap_nm, gap_gap_nm);
-        file_list = dir(fullfile(input_folder_name, file_pattern));
-        
-        if isempty(file_list)
-            fprintf('Warning: %s が見つかりません。\n', file_pattern);
-            continue;
+    gap_nm     = gap_nm_values(idx);
+    gap_gap_nm = gap_gap_nm_values(jGapGap);
+    
+    %% SET OTHER CONSTANTS
+    % (SET OTHER CONSTANTS ブロックは previous code と同じなので省略)
+    dlx = lambda0/grids_in_lam;
+    dly = dlx;
+    gap_pts = floor(gap_nm/1000/dlx);
+    gap_gap_pts = floor(gap_gap_nm/1000/dlx);
+    L = 0.4;
+    Lpts = round(L/dlx);
+    pos_src = floor(npml+grids_in_lam/4);
+    spc_pts = floor(grids_in_lam/4);
+    Nx = ceil(lambda0*beta/dlx);
+    Ny = 2*gap_pts + 2*(pos_src + Lpts + spc_pts) + gap_gap_pts;
+    nx = floor(Nx/2);
+    ny1 = floor(gap_pts/2 + pos_src + Lpts + spc_pts);
+    ny2 = floor(gap_pts + gap_pts/2 + gap_gap_pts + pos_src + Lpts + spc_pts);
+    ER  = ones(Nx,Ny);
+    MuR = ones(Nx,Ny);
+    ER_best = ones(Nx,Ny);
+    A_best = 0;
+    b = zeros(Nx,Ny);
+    b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts + spc_pts) = 1;
+    kinc = [0,1];
+    RES = [dlx,dly];
+    BC = [-1,-1];
+    NPML = [0,0,npml,npml];
+    Pol= 'Hz';
+    spc = spc_pts*dly;
+    gap = gap_pts*dly;
+    xs = dlx*(1:Nx);
+    delta_device = zeros(Nx,Ny);
+    delta_device(1:Nx, pos_src + spc_pts : pos_src + spc_pts + Lpts) = 1;
+    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts) = 1;
+    delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
+    delta_device_vec = delta_device(:);
+    eta1 = zeros(Nx,Ny);
+    eta1(:,ny1) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
+    eta1_vec = eta1(:);
+    eta2 = zeros(Nx,Ny);
+    eta2(:,ny2) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
+    eta2_vec = eta2(:);
+    for i = (1:Nx)
+        for j = (1:Ny)
+            if (delta_device(i,j) == 1)
+                if (starting == 1)
+                    ER(i,j) = rand*(eps-1)+1;
+                elseif (starting == 2)
+                    ER(i,j) = eps/2+0.5;
+                else
+                    % starting=0 -> vacuum
+                end
+            end
         end
-        
-        target_file = fullfile(input_folder_name, file_list(1).name);
-        file_text = fileread(target_file);
-        
-        tokens_G1 = regexp(file_text, 'G1_best \(abs\): ([0-9e\+\-\.]+)', 'tokens', 'once');
-        tokens_G2 = regexp(file_text, 'G2_best \(abs\): ([0-9e\+\-\.]+)', 'tokens', 'once');
-        
-        if isempty(tokens_G1) || isempty(tokens_G2)
-            fprintf('Warning: %s から必要な情報を取得できません。\n', target_file);
-            continue;
-        end
-        
-        val_G1_abs = str2double(tokens_G1{1});
-        val_G2_abs = str2double(tokens_G2{1});
-        
-        G1_abs_2D(iGap, jGapGap) = val_G1_abs;
-        G2_abs_2D(iGap, jGapGap) = val_G2_abs;
-        G_abs_sums_2D(iGap, jGapGap) = val_G1_abs + val_G2_abs;
     end
+    [fields, ~] = FDFD_TFSF(ones(Nx,Ny),MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+    Ex = fields.Ex;
+    Ey = fields.Ey;
+    E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
+    G_best_local = 0;
+    AVM_prev = zeros(Nx,Ny);
+    if display_plots
+        figure(1);
+    end
+    display('working on gradient maximized structure');
+    upd = textprogressbar(N);
+    Gs     = zeros(N,1);
+    E_maxs = zeros(N,1);
+    phis   = zeros(N,1);
+    
+    for jj = (1:N)
+        % (最適化 iteration loop ブロックは previous code と同じなので省略)
+        upd(jj);
+        [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+        Ex = fields.Ex/E0;
+        Ey = fields.Ey/E0;
+        g1 = sum(sum(eta1.*Ex));
+        g2 = sum(sum(eta2.*Ex));
+        g  = g1 + g2;
+        G  = real(g);
+        phis(jj) = angle(g);
+        DEY = extra.derivatives.DEY;
+        DEX = extra.derivatives.DEX;
+        ER_vec = ER(:);
+        chi = delta_device.*(ER - ones(Nx,Ny));
+        if (in_material)
+            E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
+        else
+            E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
+        end
+        E_abs_vec = E_abs(:);
+        E_maxs(jj) = max(E_abs_vec);
+        Ox = -1i*lambda0/(2*pi*c0)*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEY;
+        Oy =  1i*lambda0/(2*pi*c0)*spdiags(1./ER_vec,0,Nx*Ny,Nx*Ny)*DEX;
+        eta1_aj = [eta1_vec; zeros(Nx*Ny,1)];
+        eta2_aj = [eta2_vec; zeros(Nx*Ny,1)];
+        b_aj = - (eta1_aj + eta2_aj);
+        b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
+        b_aj(isnan(b_aj)) = 0 ;
+        AF = extra.AF;
+        [fields_aj, ~] = FDFD_fast(ER,MuR,RES,NPML,BC,lambda0,Pol,b_aj,AF);
+        x_aj = fields_aj.x/E0;
+        Ex_aj = reshape(x_aj(1:Nx*Ny),[Nx,Ny]);
+        Ey_aj = reshape(x_aj(Nx*Ny+1:end),[Nx,Ny]);
+        AVM = -real((Ex.*Ex_aj.*delta_device + Ey.*Ey_aj.*delta_device));
+        ER = ER + alpha*AVM + alpha*gamma*AVM_prev;
+        AVM_prev = AVM;
+        ER(ER < 1) = 1;
+        ER(ER > eps) = eps;
+        if (abs(g) > G_best_local)
+            G_best_local = abs(g);
+            ER_best = ER;
+        end
+        Gs(jj) = real(g);
+        if display_plots && mod(jj,skip)==0
+            clf;
+            subplot(2,2,1);
+            disp_map = [];
+            for k_ = 1:5
+                disp_map = [disp_map; real(ER)];
+            end
+            imagesc(disp_map,[1,eps])
+            colormap(flipud(gray))
+            title('relative permittivity')
+            set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
+            set(gca,'FontSize',22,'fontWeight','normal')
+            colorbar()
+            
+            subplot(2,2,2);
+            plot(Gs(1:jj),'k');
+            xlabel('iteration number')
+            ylabel('gradient (E_0)')
+            title('acceleration gradient at \phi = 0')
+            set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
+            set(gca,'FontSize',22,'fontWeight','normal')
+            colorbar()
+            
+            subplot(2,2,3); hold all;
+            plot((1:jj), phis(1:jj));
+            plot((1:jj), zeros(jj,1));
+            xlabel('iteration number');
+            ylabel('\phi');
+            legend({'computed','\phi=0 (target)'})
+            title('acceleration phase (\phi)')
+            set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
+            set(gca,'FontSize',22,'fontWeight','normal')
+            pause(0.001);
+        end
+    end
+    
+    %% POST PROCESSING STUFF
+    % (POST PROCESSING STUFF ブロックは previous code と同じなので省略。ただし、1D配列への格納部分に追加)
+    eps_avg = (eps+1)/2;
+    ER_best(ER_best<eps_avg) = 1;
+    ER_best(ER_best>=eps_avg) = eps;
+    ER_best_1D{k} = ER_best;
+    [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+    Ex_best = fields_best.Ex/E0;
+    Ey_best = fields_best.Ey/E0;
+    g1_best = sum(sum(eta1.*Ex_best));
+    g2_best = sum(sum(eta2.*Ex_best));
+    g_best  = g1_best + g2_best;
+    G_best_local_final = abs(g_best);
+    G1_best = abs(g1_best);
+    G2_best = abs(g2_best);
+    E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+    E_max = max(E_abs(:));
+    
+    % 1D配列に格納 (ファイル書き出しと画像保存は parfor ループ後に行う)
+    G_best_values_1D(k)             = G_best_local_final;
+    G_best_abs_sums_1D(k)           = (abs(g1_best) + abs(g2_best));
+    G_best_values_times_gap_1D(k)   = G_best_local_final * gap_nm;
+    G_best_abs_sums_times_gap_1D(k) = (abs(g1_best) + abs(g2_best)) * gap_nm;
+    G_best_values_final_1D(k)       = G_best_local_final;
+    G1_best_1D(k)                  = G1_best;
+    G2_best_1D(k)                  = G2_best;
+    g_best_complex_1D(k)           = g_best;
+    g1_best_complex_1D(k)          = g1_best;
+    g2_best_complex_1D(k)          = g2_best;
+    E_max_1D(k)                    = E_max;
+    abs_g1_plus_g2_times_gap_1D(k) = (abs(g1_best) + abs(g2_best)) * gap_nm;
+    abs_g_best_times_gap_1D(k)     = abs(g_best) * gap_nm;
+    abs_g1_best_1D(k)              = abs(g1_best); % New: abs(g1)
+    abs_g2_best_1D(k)              = abs(g2_best); % New: abs(g2)
+    abs_sum_g_times_gap_1D(k)      = (abs(g1_best) + abs(g2_best)) * gap_nm; % New: (abs(g1)+abs(g2))*gap
+    
+    
+end % end of k loop (1次元 parfor ループ)
+
+% -------------------------------------------------------------
+%  ファイル書き出し & 画像保存 (parfor ループ後)
+for k = 1:nComb
+    % (ファイル書き出し & 画像保存 loop ブロックは previous code と同じなので省略)
+    idx     = floor((k-1)/ngapgap) + 1;
+    jGapGap = mod(k-1, ngapgap) + 1;
+    gap_nm     = gap_nm_values(idx);
+    gap_gap_nm = gap_gap_nm_values(jGapGap);
+    fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    fileID = fopen(fname, 'w');
+    fprintf(fileID, 'G_best (abs): %f\n', G_best_values_final_1D(k));
+    fprintf(fileID, 'G1_best (abs): %f\n', G1_best_1D(k));
+    fprintf(fileID, 'G2_best (abs): %f\n', G2_best_1D(k));
+    fprintf(fileID, 'g_best (complex) = %.4f + %.4fi\n', real(g_best_complex_1D(k)), imag(g_best_complex_1D(k)));
+    fprintf(fileID, 'g1_best (complex) = %.4f + %.4fi\n', real(g1_best_complex_1D(k)), imag(g1_best_complex_1D(k)));
+    fprintf(fileID, 'g2_best (complex) = %.4f + %.4fi\n', real(g2_best_complex_1D(k)), imag(g2_best_complex_1D(k)));
+    fprintf(fileID, 'E_max: %f\n', E_max_1D(k));
+    fprintf(fileID, '(abs(g1)+abs(g2))*gap: %f\n', abs_g1_plus_g2_times_gap_1D(k));
+    fprintf(fileID, 'abs(g1+g2)*gap: %f\n', abs_g_best_times_gap_1D(k));
+    fclose(fileID);
+    fprintf('File saved as: %s\n', fname);
+    if display_plots
+        bestFig = figure('Name','Best Structure','Visible','on');
+    else
+        bestFig = figure('Name','Best Structure','Visible','off');
+    end
+    disp_best = [];
+    ER_best_k = ER_best_1D{k};
+    for k_ = 1:5
+        disp_best = [disp_best; real(ER_best_k)];
+    end
+    imagesc(disp_best, [1, eps]);
+    colormap(flipud(gray));
+    axis equal tight;
+    title(sprintf('Best Structure (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
+    colorbar();
+    figNameBest = sprintf('%s/best_structure_gap_%d_gapgap_%d_%s.png', output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    saveas(bestFig, figNameBest);
 end
 
-%% 4. ダブルチャネルの派生量 (Power Equivalent Quantity)
-REF_nm = 2000;  % 2000 nm で割るための定数
 
-G1_peq_2D = (G1_abs_2D .* repmat(gap_nm_values(:), 1, ngapgap)) / REF_nm;
-G2_peq_2D = (G2_abs_2D .* repmat(gap_nm_values(:), 1, ngapgap)) / REF_nm;
-G_sum_peq_2D = G1_peq_2D + G2_peq_2D;
+% -------------------------------------------------------------
+%  imagesc を削除
 
-%% 5. シングルチャネルのデータ読み込み
-sG_best_1D = nan(ngap,1);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) 追加プロット (abs(g1), abs(g2), (abs(g1)+abs(g2))*gap など)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 1. abs(g1) vs gap
+figure('Name','abs(g1) vs gap for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_g1_best_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g1)');
+title('abs(g1) vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_g1_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+% 2. abs(g2) vs gap
+figure('Name','abs(g2) vs gap for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_g2_best_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g2)');
+title('abs(g2) vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_g2_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+% 3. (abs(g1)+abs(g2))*gap vs gap
+figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap_gap');
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, abs_sum_g_times_gap_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
+end
+legend('show');
+xlabel('gap (nm)');
+ylabel('(abs(g1)+abs(g2))*gap');
+title('(abs(g1)+abs(g2))*gap vs gap for each gap\_gap');
+grid on;
+saveas(gcf, sprintf('%s/abs_sum_g_times_gap_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
+
+
+% 4. (abs(g1)+abs(g2) with best gap_gap) * gap vs gap
+G_abs_sums_best_for_each_gap = zeros(ngap,1);
+idx_best_for_each_gap = zeros(ngap,1);
+abs_sum_g_best_times_gap_for_each_gap = zeros(ngap,1); % New: best (abs_sum)*gap
 
 for iGap = 1:ngap
-    gnm = gap_nm_values(iGap);
-    
-    file_pattern = sprintf('final_acceleration_gradients_gap_%d_*_gap_%d.txt', gnm, gnm);
-    file_list = dir(fullfile(single_channel_folder_name, file_pattern));
-    
-    if isempty(file_list)
-        fprintf('Warning (SingleChannel): %s が見つかりません。\n', file_pattern);
-        continue;
-    end
-    
-    target_file = fullfile(single_channel_folder_name, file_list(1).name);
-    file_text = fileread(target_file);
-    
-    tokens_G = regexp(file_text, 'G_best:\s*([0-9e\+\-\.]+)', 'tokens', 'once');
-    if isempty(tokens_G)
-        fprintf('Warning (SingleChannel): %s から G_best が取得できません。\n', target_file);
-        continue;
-    end
-    
-    sG_best_1D(iGap) = str2double(tokens_G{1});
+    k_vec = (iGap-1)*ngapgap + (1:ngapgap);
+    [G_abs_sums_best_for_each_gap(iGap), localBestIdx] = max(G_best_abs_sums_1D(k_vec));
+    idx_best_for_each_gap(iGap) = localBestIdx;
+    abs_sum_g_best_times_gap_for_each_gap(iGap) = max(abs_sum_g_times_gap_1D(k_vec)); % New: max of (abs_sum)*gap
 end
+best_gapgap_for_each_gap = gap_gap_nm_values(idx_best_for_each_gap);
 
-% シングルチャネル用の Power Equivalent Quantity
-sG_peq_1D = (sG_best_1D .* gap_nm_values(:)) / REF_nm;
 
-%% 6. プロット用関数
+figure('Name','(abs(g1)+abs(g2) with best gap_gap)*gap vs gap'); % Modified title
+plot(gap_nm_values, abs_sum_g_best_times_gap_for_each_gap, '-o'); % Modified y data
+xlabel('gap (nm)');
+ylabel('(abs(g1)+abs(g2) with best gap\_gap)*gap'); % Modified ylabel
+title('(abs(g1)+abs(g2) with best gap\_gap)*gap vs gap'); % Modified title
+grid on;
+saveas(gcf, sprintf('%s/abs_sum_g_best_times_gap_vs_gap_%s.png', output_folder_name, timestamp)); % Modified filename
 
-% (A) 「for each gap_gap」(複数線プロット; ダブルチャネルのみ)
-function plot_with_nan_handling(x_values, y_matrix, gap_gap_vals, x_label, y_label, title_str, save_path)
-figure('Name', title_str);
-hold on; grid on;
-nLines = 0;
-for j = 1:size(y_matrix, 2)
-    y_values = y_matrix(:, j);
-    valid_idx = ~isnan(y_values);
-    if any(valid_idx)
-        plot(x_values(valid_idx), y_values(valid_idx), '-o', ...
-            'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_vals(j)));
-        nLines = nLines + 1;
-    end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) gap_gapをlegendとして、gap vs (abs(g1)+abs(g2))を1次元プロット (既存プロット)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure('Name','abs(g1)+abs(g2) vs gap for each gap_gap'); % タイトル変更
+hold on;
+for jGapGap = 1:ngapgap
+    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    plot(gap_nm_values, G_best_abs_sums_1D(k_vec), '-o', ...
+        'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
-xlabel(x_label, 'FontSize', 16);
-ylabel(y_label, 'FontSize', 16);
-title(title_str, 'FontSize', 16);
+legend('show');
+xlabel('gap (nm)');
+ylabel('abs(g1)+abs(g2)');
+title('abs(g1)+abs(g2) vs gap for each gap\_gap'); % タイトル変更
+grid on;
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_vs_gap_for_each_gapgap_%s.png', output_folder_name, timestamp));
 
-if nLines > 1
-    legend('show', 'Location','best', 'FontSize', 16);
-end
-saveas(gcf, save_path);
-end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% (新規) 各 gap で最大となる (abs(g1)+abs(g2)) を抽出して1次元プロット (既存プロット)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure('Name','abs(g1)+abs(g2) with best gap_gap vs gap'); % タイトル変更
+plot(gap_nm_values, G_abs_sums_best_for_each_gap, '-o');
+xlabel('gap (nm)');
+ylabel('abs(g1)+abs(g2) with best gap\_gap');
+title('abs(g1)+abs(g2) with best gap\_gap vs gap'); % タイトル変更
+grid on;
+saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', output_folder_name, timestamp));
 
-% (B) gap_gap の中で最大値を抽出 (1本線を赤色でプロット)
-function plot_max_over_gapgap(x_values, y_matrix, x_label, y_label, title_str, save_path)
-figure('Name', title_str);
-hold on; grid on;
-max_vals = max(y_matrix, [], 2, 'omitnan');
-co = get(groot, 'DefaultAxesColorOrder');
-plot(x_values, max_vals, '-o', 'Color', co(2, :));
-xlabel(x_label, 'FontSize', 16);
-ylabel(y_label, 'FontSize', 16);
-title(title_str, 'FontSize', 16);
-saveas(gcf, save_path);
-end
-
-% (C) gap_gap で最大値 + シングル (2本線; channel 1 と single)
-function plot_max_over_gapgap_with_single(x_values, y_matrix, single_values, x_label, y_label, title_str, save_path, legend_dc, legend_sg)
-figure('Name', title_str);
-hold on; grid on;
-co = get(groot, 'DefaultAxesColorOrder');
-max_vals = max(y_matrix, [], 2, 'omitnan');
-plot(x_values, single_values, '-o', 'Color', co(1, :), 'DisplayName', legend_sg);
-plot(x_values, max_vals, '-o', 'Color', co(2, :), 'DisplayName', legend_dc);
-xlabel(x_label, 'FontSize', 16);
-ylabel(y_label, 'FontSize', 16);
-title(title_str, 'FontSize', 16);
-legend('show', 'Location','best', 'FontSize', 16);
-saveas(gcf, save_path);
-end
-
-% (D) シングルチャネルのみのグラフ
-function plot_single_only(x_values, single_values, x_label, y_label, title_str, save_path)
-figure('Name', title_str);
-hold on; grid on;
-plot(x_values, single_values, '-o');
-xlabel(x_label, 'FontSize', 16);
-ylabel(y_label, 'FontSize', 16);
-title(title_str, 'FontSize', 16);
-saveas(gcf, save_path);
-end
-
-% (E) channel1, channel2, single の加速勾配をまとめて描画する関数
-%     ※ 各 gap における「best gap\_gap」（最大値）をそれぞれ算出してプロット
-function plot_max_over_gapgap_with_single_and_ch2(x_values, y_matrix_ch1, y_matrix_ch2, single_values, x_label, y_label, title_str, save_path, legend_ch1, legend_ch2, legend_sg)
-figure('Name', title_str);
-hold on; grid on;
-co = get(groot, 'DefaultAxesColorOrder');
-
-% 各チャネルの最大値（各 gap に対して）
-max_vals_ch1 = max(y_matrix_ch1, [], 2, 'omitnan');
-max_vals_ch2 = max(y_matrix_ch2, [], 2, 'omitnan');
-
-% プロット： single (青: co(1,:))、channel1 (赤: co(2,:))、channel2 (緑: co(3,:))
-plot(x_values, single_values, '-o', 'Color', co(1,:), 'DisplayName', legend_sg);
-plot(x_values, max_vals_ch1, '-o', 'Color', co(2,:), 'DisplayName', legend_ch1);
-plot(x_values, max_vals_ch2, '-o', 'Color', co(3,:), 'DisplayName', legend_ch2);
-
-xlabel(x_label, 'FontSize', 16);
-ylabel(y_label, 'FontSize', 16);
-title(title_str, 'FontSize', 16);
-legend('show', 'Location','best', 'FontSize', 16);
-saveas(gcf, save_path);
-end
-
-%% 7. グラフ出力
-
-% (A) for each gap_gap (ダブルチャネルのみ)
-plot_with_nan_handling( ...
-    gap_nm_values, G1_peq_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Power Equivalent Quantity (channel 1)', ...
-    'Power Equivalent Quantity (channel 1) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['peq_g1_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-plot_with_nan_handling( ...
-    gap_nm_values, G2_peq_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Power Equivalent Quantity (channel 2)', ...
-    'Power Equivalent Quantity (channel 2) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['peq_g2_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-plot_with_nan_handling( ...
-    gap_nm_values, G1_abs_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Acceleration Gradient (channel 1)', ...
-    'Acceleration Gradient (channel 1) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['grad_g1_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-plot_with_nan_handling( ...
-    gap_nm_values, G2_abs_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Acceleration Gradient (channel 2)', ...
-    'Acceleration Gradient (channel 2) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['grad_g2_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-plot_with_nan_handling( ...
-    gap_nm_values, G_abs_sums_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Acceleration Gradient (Total)', ...
-    'Acceleration Gradient (Total) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['grad_gsum_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-plot_with_nan_handling( ...
-    gap_nm_values, G_sum_peq_2D, gap_gap_nm_values, ...
-    'gap (nm)', 'Power Equivalent Quantity (Total)', ...
-    'Power Equivalent Quantity (Total) vs gap for each gap\_gap', ...
-    fullfile(output_folder_name, ['peq_gsum_vs_gap_for_each_gapgap_', timestamp_str, '.png']) ...
-    );
-
-% (B) gap_gap で最大値 (ダブルチャネルのみ, 1本線)
-plot_max_over_gapgap( ...
-    gap_nm_values, G1_peq_2D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (channel 1) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_g1_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_max_over_gapgap( ...
-    gap_nm_values, G2_peq_2D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (channel 2) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_g2_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_max_over_gapgap( ...
-    gap_nm_values, G1_abs_2D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (channel 1) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_g1_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_max_over_gapgap( ...
-    gap_nm_values, G2_abs_2D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (channel 2) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_g2_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_max_over_gapgap( ...
-    gap_nm_values, G_abs_sums_2D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (Total) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_gsum_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_max_over_gapgap( ...
-    gap_nm_values, G_sum_peq_2D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (Total) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_gsum_vs_gap_', timestamp_str, '.png']) ...
-    );
-
-% (C) gap_gap で最大値 + シングル (2本線: channel 1 と single)
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G1_peq_2D, sG_peq_1D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (channel 1 & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_g1_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G2_peq_2D, sG_peq_1D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (channel 2 & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_g2_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G1_abs_2D, sG_best_1D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (channel 1 & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_g1_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G2_abs_2D, sG_best_1D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (channel 2 & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_g2_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G_abs_sums_2D, sG_best_1D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (total & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_gsum_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-plot_max_over_gapgap_with_single( ...
-    gap_nm_values, G_sum_peq_2D, sG_peq_1D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (total & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_peq_gsum_vs_gap_with_single_', timestamp_str, '.png']), ...
-    'Double channel (best gap\_gap)', 'Single channel' ...
-    );
-
-% (E) channel1, channel2, single をまとめたグラフ (3本線)
-plot_max_over_gapgap_with_single_and_ch2( ...
-    gap_nm_values, G1_abs_2D, G2_abs_2D, sG_best_1D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (channel 1, channel 2 & single) vs gap (best gap\_gap)', ...
-    fullfile(output_folder_name, ['max_grad_ch1_ch2_single_vs_gap_', timestamp_str, '.png']), ...
-    'Double channel (ch1, best gap\_gap)', 'Double channel (ch2, best gap\_gap)', 'Single channel' ...
-    );
-
-% (D) シングルチャネルのみのグラフ
-plot_single_only( ...
-    gap_nm_values, sG_best_1D, ...
-    'gap (nm)', 'Acceleration Gradient', ...
-    'Acceleration Gradient (single) vs gap', ...
-    fullfile(output_folder_name, ['single_acc_grad_vs_gap_', timestamp_str, '.png']) ...
-    );
-plot_single_only( ...
-    gap_nm_values, sG_peq_1D, ...
-    'gap (nm)', 'Power Equivalent Quantity', ...
-    'Power Equivalent Quantity (single) vs gap', ...
-    fullfile(output_folder_name, ['single_peq_vs_gap_', timestamp_str, '.png']) ...
-    );
-
-fprintf('=== Done. グラフを出力しました ===\n');
+delete(gcp('nocreate'));
