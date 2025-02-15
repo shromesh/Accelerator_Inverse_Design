@@ -41,7 +41,7 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/double_channel_step_40_gapgap_step_200_jan23_parallel_grids_100_L04';
+output_folder_name = 'result/double_channel_feb16';
 
 % -------------------------------------------------------------
 % gap_nm_values, gap_gap_nm_values の長さ
