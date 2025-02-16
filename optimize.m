@@ -78,6 +78,9 @@ ER_best_1D                   = cell(nComb, 1); % 構造格納用
 abs_g1_best_1D               = zeros(nComb, 1);
 abs_g2_best_1D               = zeros(nComb, 1);
 abs_sum_g_times_gap_1D       = zeros(nComb, 1);
+
+%%% NEW %%% % 電場分布（最適化後構造で計算）の結果を格納する cell 配列
+E_field_magnitude_1D = cell(nComb, 1);
 % -------------------------------------------------------------
 
 % -------------------------------------------------------------
@@ -108,7 +111,6 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     ER  = ones(Nx,Ny);
     MuR = ones(Nx,Ny);
     ER_best = ones(Nx,Ny);
-    A_best = 0; %#ok<NASGU> %（未使用ですが念のため保持）
     b = zeros(Nx,Ny);
     b(:, pos_src:pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts + spc_pts) = 1;
     kinc = [0,1];
@@ -127,7 +129,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     delta_device(1:Nx, pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts : pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts) = 1;
     delta_device_vec = delta_device(:);
     
-    % eta1, eta2
+    % eta1, eta2 の設定
     eta1 = zeros(Nx,Ny);
     eta1(:,ny1) = 1/Nx*exp(2*pi*1i*dlx*(0:Nx-1)/lambda0/beta);
     eta1_vec = eta1(:);
@@ -137,15 +139,15 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     eta2_vec = eta2(:);
     
     % ER の初期化
-    for i = (1:Nx)
-        for j = (1:Ny)
-            if (delta_device(i,j) == 1)
-                if (starting == 1)
+    for i = 1:Nx
+        for j = 1:Ny
+            if delta_device(i,j) == 1
+                if starting == 1
                     ER(i,j) = rand*(eps-1)+1;
-                elseif (starting == 2)
+                elseif starting == 2
                     ER(i,j) = eps/2+0.5;
                 else
-                    % starting=0 -> vacuum
+                    % starting = 0 -> vacuum
                 end
             end
         end
@@ -164,14 +166,14 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
         figure(1);
     end
     
-    % 最適化反復
+    % 最適化反復ループ
     display('working on gradient maximized structure');
     upd = textprogressbar(N);
     Gs     = zeros(N,1);
     E_maxs = zeros(N,1);
     phis   = zeros(N,1);
     
-    for jj = (1:N)
+    for jj = 1:N
         upd(jj);
         [fields, extra] = FDFD_TFSF(ER,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
         Ex = fields.Ex/E0;
@@ -179,16 +181,15 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
         g1 = sum(sum(eta1.*Ex));
         g2 = sum(sum(eta2.*Ex));
         g  = g1 + g2;
-        G  = real(g);
         phis(jj) = angle(g);
         
         DEY = extra.derivatives.DEY;
         DEX = extra.derivatives.DEX;
         ER_vec = ER(:);
         
-        % E-field amplitude (for E_max)
+        % 電界振幅 (E_max の算出用)
         chi = delta_device.*(ER - ones(Nx,Ny));
-        if (in_material)
+        if in_material
             E_abs = (chi/(eps-1)).*sqrt(abs(Ex).^2 + abs(Ey).^2);
         else
             E_abs = delta_device.*sqrt(abs(Ex).^2 + abs(Ey).^2);
@@ -202,7 +203,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
         eta2_aj = [eta2_vec; zeros(Nx*Ny,1)];
         b_aj = - (eta1_aj + eta2_aj);
         b_aj = reshape(Ox*b_aj(1:Nx*Ny) + Oy*b_aj(Nx*Ny+1:end),[Nx,Ny]);
-        b_aj(isnan(b_aj)) = 0 ;
+        b_aj(isnan(b_aj)) = 0;
         
         AF = extra.AF;
         [fields_aj, ~] = FDFD_fast(ER,MuR,RES,NPML,BC,lambda0,Pol,b_aj,AF);
@@ -217,7 +218,7 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
         ER(ER < 1) = 1;
         ER(ER > eps) = eps;
         
-        if (abs(g) > G_best_local)
+        if abs(g) > G_best_local
             G_best_local = abs(g);
             ER_best = ER;
         end
@@ -246,13 +247,13 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
             set(gca,'FontSize',22,'fontWeight','normal')
             colorbar()
             
-            subplot(2,2,3); hold all;
-            plot((1:jj), phis(1:jj));
-            plot((1:jj), zeros(jj,1));
+            subplot(2,2,3); hold on;
+            plot(1:jj, phis(1:jj));
+            plot(1:jj, zeros(jj,1));
             xlabel('iteration number');
             ylabel('\phi');
-            legend({'computed','\phi=0 (target)'})
-            title('acceleration phase (\phi)')
+            legend({'computed','\phi=0 (target)'});
+            title('acceleration phase (\phi)');
             set(findall(gcf,'type','text'),'FontSize',22,'fontWeight','normal')
             set(gca,'FontSize',22,'fontWeight','normal')
             pause(0.001);
@@ -261,11 +262,11 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     
     %% POST PROCESSING STUFF
     eps_avg = (eps+1)/2;
-    ER_best(ER_best<eps_avg) = 1;
-    ER_best(ER_best>=eps_avg) = eps;
+    ER_best(ER_best < eps_avg) = 1;
+    ER_best(ER_best >= eps_avg) = eps;
     ER_best_1D{k} = ER_best;
     
-    [fields_best, ~] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
+    [fields_best, extra_best] = FDFD_TFSF(ER_best,MuR,RES,NPML,BC,lambda0,Pol,b,kinc);
     Ex_best = fields_best.Ex/E0;
     Ey_best = fields_best.Ey/E0;
     g1_best = sum(sum(eta1.*Ex_best));
@@ -275,10 +276,10 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     G1_best = abs(g1_best);
     G2_best = abs(g2_best);
     
-    E_abs = delta_device.*sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
+    E_abs = delta_device .* sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
     E_max = max(E_abs(:));
     
-    % 1D配列に格納
+    %%%% 結果を 1D 配列へ格納
     G_best_values_1D(k)             = G_best_local_final;
     G_best_abs_sums_1D(k)           = (abs(g1_best) + abs(g2_best));
     G_best_values_times_gap_1D(k)   = G_best_local_final * gap_nm;
@@ -296,11 +297,21 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     abs_g2_best_1D(k)               = abs(g2_best);
     abs_sum_g_times_gap_1D(k)       = (abs(g1_best) + abs(g2_best)) * gap_nm;
     
+    %%% NEW %%% 電場分布の計算を parfor 内で実施し，結果を保存（最適化後構造での電場分布）
+    [fields_best_for_plot, ~] = FDFD_TFSF(ER_best, MuR, [dlx, dlx], [0,0,npml,npml], BC, lambda0, Pol, b, kinc);
+    Ex_best_plot = fields_best_for_plot.Ex;
+    Ey_best_plot = fields_best_for_plot.Ey;
+    E_best_magnitude = sqrt(abs(Ex_best_plot).^2 + abs(Ey_best_plot).^2);
+    E_field_magnitude_1D{k} = E_best_magnitude;
+    
 end % end of parfor
 
 % -------------------------------------------------------------
 %  (gap, gap_gap) ごとの結果をファイル書き出し & 画像保存
 % -------------------------------------------------------------
+% dlx はすべての組み合わせで同じなのでここで再定義
+dlx = lambda0/grids_in_lam;
+
 for k = 1:nComb
     idx     = floor((k-1)/ngapgap) + 1;
     jGapGap = mod(k-1, ngapgap) + 1;
@@ -326,7 +337,7 @@ for k = 1:nComb
     fclose(fileID);
     fprintf('File saved as: %s\n', fname);
     
-    %%% 構造 (ER_best) の 2D イラスト出力
+    %%% 構造 (ER_best) の 2D イラスト出力（軸ラベルを "pixel" に設定） - 5回繰り返し
     ER_best_k = ER_best_1D{k};
     bestFig = figure('Name','Best Structure','Visible','off');
     disp_best = [];
@@ -337,9 +348,8 @@ for k = 1:nComb
     colormap(flipud(gray));
     axis equal tight;
     colorbar();
-    %%% NEW %%%
-    xlabel('pixel');  % 縦軸・横軸ラベルを pixel に
-    ylabel('pixel');  %
+    xlabel('pixel');
+    ylabel('pixel');
     title(sprintf('Best Structure (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
     
     figNameBest = sprintf('%s/best_structure_gap_%d_gapgap_%d_%s.png', ...
@@ -347,16 +357,14 @@ for k = 1:nComb
     saveas(bestFig, figNameBest);
     close(bestFig);
     
-    %%% NEW %%%
-    % 電場分布の図を最適化後の構造で計算して保存
-    [fields_best_for_plot, ~] = FDFD_TFSF(ER_best_k, MuR, [dlx, dlx], ...
-        [0,0,npml,npml], BC, lambda0, Pol, b, [0,1]);
-    Ex_best_plot = fields_best_for_plot.Ex;
-    Ey_best_plot = fields_best_for_plot.Ey;
-    E_best_magnitude = sqrt(abs(Ex_best_plot).^2 + abs(Ey_best_plot).^2);
-    
+    %%% NEW %%% 電場分布の出力（5回繰り返し）
+    E_best_magnitude = E_field_magnitude_1D{k};
     efieldFig = figure('Name','Electric Field Magnitude','Visible','off');
-    imagesc(E_best_magnitude);
+    disp_efield = [];
+    for kk_ = 1:5
+        disp_efield = [disp_efield; E_best_magnitude];  %#ok<AGROW>
+    end
+    imagesc(disp_efield);
     axis equal tight;
     colormap jet;
     colorbar();
@@ -372,13 +380,12 @@ end
 
 %%% NEW %%%
 % -------------------------------------------------------------
-%  全組み合わせをまとめたテキストファイルを出力
+%  全組み合わせをまとめた CSV ファイルを出力
 % -------------------------------------------------------------
-summary_filename = sprintf('%s/summary_all_%s.txt', output_folder_name, timestamp);
+summary_filename = sprintf('%s/summary_all_%s.csv', output_folder_name, timestamp);
 fid_summary = fopen(summary_filename, 'w');
-fprintf(fid_summary, ...
-    ['gap_nm\tgap_gap_nm\tG_best_final\tG1_best\tG2_best\t' ...
-    'real_g_best\timag_g_best\tE_max\t(abs(g1)+abs(g2))*gap\tabs(g1+g2)*gap\n']);
+% ヘッダ行 (カンマ区切り)
+fprintf(fid_summary, 'gap_nm,gap_gap_nm,G_best_final,G1_best,G2_best,real_g_best,imag_g_best,E_max,(abs(g1)+abs(g2))*gap,abs(g1+g2)*gap\n');
 
 for k = 1:nComb
     idx     = floor((k-1)/ngapgap) + 1;
@@ -386,8 +393,7 @@ for k = 1:nComb
     gap_nm     = gap_nm_values(idx);
     gap_gap_nm = gap_gap_nm_values(jGapGap);
     
-    fprintf(fid_summary, ...
-        '%d\t%d\t%f\t%f\t%f\t%f\t%f\t%f\t%f\t%f\n', ...
+    fprintf(fid_summary, '%d,%d,%f,%f,%f,%f,%f,%f,%f,%f\n', ...
         gap_nm, gap_gap_nm, ...
         G_best_values_final_1D(k), ...
         G1_best_1D(k), ...
@@ -401,16 +407,15 @@ end
 fclose(fid_summary);
 fprintf('Summary file saved as: %s\n', summary_filename);
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% (新規) 各種プロット (例)
+%% (新規) 各種プロット
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % 1. abs(g1) vs gap for each gap_gap
 figure('Name','abs(g1) vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
-    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    k_vec = (0:ngap-1)*ngapgap + jGapGap;
     plot(gap_nm_values, abs_g1_best_1D(k_vec), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
@@ -425,7 +430,7 @@ saveas(gcf, sprintf('%s/abs_g1_vs_gap_for_each_gapgap_%s.png', output_folder_nam
 figure('Name','abs(g2) vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
-    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    k_vec = (0:ngap-1)*ngapgap + jGapGap;
     plot(gap_nm_values, abs_g2_best_1D(k_vec), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
@@ -440,7 +445,7 @@ saveas(gcf, sprintf('%s/abs_g2_vs_gap_for_each_gapgap_%s.png', output_folder_nam
 figure('Name','(abs(g1)+abs(g2))*gap vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
-    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    k_vec = (0:ngap-1)*ngapgap + jGapGap;
     plot(gap_nm_values, abs_sum_g_times_gap_1D(k_vec), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
@@ -476,7 +481,7 @@ saveas(gcf, sprintf('%s/abs_sum_g_best_times_gap_vs_gap_%s.png', output_folder_n
 figure('Name','abs(g1)+abs(g2) vs gap for each gap_gap');
 hold on;
 for jGapGap = 1:ngapgap
-    k_vec = (0 : ngap-1)*ngapgap + jGapGap;
+    k_vec = (0:ngap-1)*ngapgap + jGapGap;
     plot(gap_nm_values, G_best_abs_sums_1D(k_vec), '-o', ...
         'DisplayName', sprintf('gap\\_gap = %d nm', gap_gap_nm_values(jGapGap)));
 end
@@ -496,5 +501,4 @@ title('abs(g1)+abs(g2) with best gap\_gap vs gap');
 grid on;
 saveas(gcf, sprintf('%s/abs_g1_plus_abs_g2_best_vs_gap_%s.png', output_folder_name, timestamp));
 
-% 最後にパラレルプールをクローズ
 delete(gcp('nocreate'));
