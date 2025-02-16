@@ -44,7 +44,7 @@ spc_pts = floor(grids_in_lam/4);
 Lpts = round(L/dlx);
 % 設計領域は、ソース領域(spc_pts)を除いた部分なので
 y_design_start_all = pos_src + spc_pts;  % これは全 gap で同じ
-y_design_end_all = zeros(num_gap,1);
+y_design_end_all = zeros(num_gap,1); % いらんかったかも．GPTの出力参照
 for i = 1:num_gap
     gap_pts = floor(gap_nm_values(i)/1000/dlx);
     % 設計領域の右端は、src+spcから Lpts, gap_pts, Lpts 分だけ延長した位置
