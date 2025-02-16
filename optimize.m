@@ -17,12 +17,12 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 
 %% 新たに追加: gap を変化させるための配列
-gap_nm_values = 40:40:1000;
-% gap_nm_values = [300, 400];
+% gap_nm_values = 40:40:1000;
+gap_nm_values = [520];
 
 %% gap_gap を変化させるための配列
-gap_gap_nm_values = 100:200:1000;
-% gap_gap_nm_values = [300, 400];
+% gap_gap_nm_values = 100:200:1000;
+gap_gap_nm_values = [900];
 
 N = 4000;                                   % number of iterations
 % N = 100;                                   % number of iterations
@@ -40,7 +40,7 @@ eps = 3.4363^2;     % Si 2um
 gamma = 0.9;                                % 'momentum term', see paper. 0-1
 
 %% 出力フォルダ名を設定
-output_folder_name = 'result/double_channel_feb16';
+output_folder_name = 'result/double_channel_feb17_x_electric';
 
 % -------------------------------------------------------------
 % gap_nm_values, gap_gap_nm_values の長さ
@@ -81,6 +81,8 @@ abs_sum_g_times_gap_1D       = zeros(nComb, 1);
 
 %%% NEW %%% % 電場分布（最適化後構造で計算）の結果を格納する cell 配列
 E_field_magnitude_1D = cell(nComb, 1);
+%%% NEW %%% % x成分 Ex_best_plot を格納する cell 配列（加速用に重要）
+Ex_field_1D = cell(nComb, 1);
 % -------------------------------------------------------------
 
 % -------------------------------------------------------------
@@ -303,6 +305,8 @@ parfor k = 1:nComb % 1次元の parfor ループに変更
     Ey_best_plot = fields_best_for_plot.Ey;
     E_best_magnitude = sqrt(abs(Ex_best_plot).^2 + abs(Ey_best_plot).^2);
     E_field_magnitude_1D{k} = E_best_magnitude;
+    %%% NEW %%% Ex成分（x方向電場）が加速に重要なため，その結果も保存
+    Ex_field_1D{k} = Ex_best_plot;
     
 end % end of parfor
 
@@ -357,7 +361,7 @@ for k = 1:nComb
     saveas(bestFig, figNameBest);
     close(bestFig);
     
-    %%% NEW %%% 電場分布の出力（5回繰り返し）
+    %%% NEW %%% 電場分布の出力（5回繰り返し）：電場大きさ
     E_best_magnitude = E_field_magnitude_1D{k};
     efieldFig = figure('Name','Electric Field Magnitude','Visible','off');
     disp_efield = [];
@@ -376,6 +380,26 @@ for k = 1:nComb
         output_folder_name, gap_nm, gap_gap_nm, timestamp);
     saveas(efieldFig, efieldFigName);
     close(efieldFig);
+    
+    %%% NEW %%% Ex 成分の出力（x方向電場）も 5回繰り返し
+    Ex_best_plot = Ex_field_1D{k};
+    exFig = figure('Name','Electric Field Ex','Visible','off');
+    disp_ex = [];
+    for kk_ = 1:5
+        disp_ex = [disp_ex; real(Ex_best_plot)];  %#ok<AGROW>
+    end
+    imagesc(disp_ex);
+    axis equal tight;
+    colormap jet;
+    colorbar();
+    xlabel('pixel');
+    ylabel('pixel');
+    title(sprintf('Electric Field Ex (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
+    
+    exFigName = sprintf('%s/electric_field_Ex_gap_%d_gapgap_%d_%s.png', ...
+        output_folder_name, gap_nm, gap_gap_nm, timestamp);
+    saveas(exFig, exFigName);
+    close(exFig);
 end
 
 %%% NEW %%%

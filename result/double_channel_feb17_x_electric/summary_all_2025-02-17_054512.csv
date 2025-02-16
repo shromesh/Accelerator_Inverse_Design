@@ -1,0 +1,2 @@
+gap_nm,gap_gap_nm,G_best_final,G1_best,G2_best,real_g_best,imag_g_best,E_max,(abs(g1)+abs(g2))*gap,abs(g1+g2)*gap
+520,900,0.561163,0.309744,0.252430,0.557378,0.065061,6.448729,292.330141,291.804563
