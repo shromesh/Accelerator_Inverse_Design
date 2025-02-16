@@ -356,10 +356,11 @@ for k = 1:nComb
     pos_src = floor(npml+grids_in_lam/4);
     spc_pts = floor(grids_in_lam/4);
     gap_pts = floor(gap_nm/1000/dlx);
+    gap_gap_pts = floor(gap_gap_nm/1000/dlx);
     L = 0.4;
     Lpts = round(L/dlx);
     y_design_start = pos_src + spc_pts;
-    y_design_end = pos_src + spc_pts + Lpts + gap_pts + Lpts;
+    y_design_end = pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts;
     
     E_best_magnitude = E_field_magnitude_1D{k};
     % 設計領域のみ抽出
