@@ -17,18 +17,16 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 
 %% 新たに追加: gap を変化させるための配列
-% gap_nm_values = 40:40:1000;
 gap_nm_values = [520];
 
 %% gap_gap を変化させるための配列
-% gap_gap_nm_values = 100:200:1000;
 gap_gap_nm_values = [900];
 
-N = 4000;                                   % number of iterations
+N = 100;                                   % number of iterations
 
 parpool('local', 10);
 timestamp = datestr(now, 'yyyy-mm-dd_HHMMSS');
-npml = 10;                                  % number of PML points
+npml = 10;                                  % number of PML (absorbing region) points
 
 % relative permittivity of material region.
 eps = 3.4363^2;     % Si 2um
@@ -139,7 +137,7 @@ parfor k = 1:nComb
     % ER の初期化
     for i = 1:Nx
         for j = 1:Ny
-            if delta_device(i,j) == 1
+            if delta_device(i,j)==1
                 if starting == 1
                     ER(i,j) = rand*(eps-1)+1;
                 elseif starting == 2
@@ -153,7 +151,7 @@ parfor k = 1:nComb
     [fields, ~] = FDFD_TFSF(ones(Nx,Ny), MuR, RES, NPML, BC, lambda0, Pol, b, kinc);
     Ex = fields.Ex;
     Ey = fields.Ey;
-    E0 = sqrt(abs(Ex(nx, ny1))^2 + abs(Ey(nx, ny1))^2);
+    E0 = sqrt(abs(Ex(nx,ny1))^2 + abs(Ey(nx,ny1))^2);
     
     G_best_local = 0;
     AVM_prev = zeros(Nx,Ny);
@@ -165,9 +163,9 @@ parfor k = 1:nComb
     % 最適化反復ループ
     display('working on gradient maximized structure');
     upd = textprogressbar(N);
-    Gs     = zeros(N,1);
+    Gs = zeros(N,1);
     E_maxs = zeros(N,1);
-    phis   = zeros(N,1);
+    phis = zeros(N,1);
     
     for jj = 1:N
         upd(jj);
@@ -176,7 +174,7 @@ parfor k = 1:nComb
         Ey = fields.Ey/E0;
         g1 = sum(sum(eta1.*Ex));
         g2 = sum(sum(eta2.*Ex));
-        g  = g1 + g2;
+        g = g1 + g2;
         phis(jj) = angle(g);
         
         DEY = extra.derivatives.DEY;
@@ -267,7 +265,7 @@ parfor k = 1:nComb
     Ey_best = fields_best.Ey/E0;
     g1_best = sum(sum(eta1.*Ex_best));
     g2_best = sum(sum(eta2.*Ex_best));
-    g_best  = g1_best + g2_best;
+    g_best = g1_best + g2_best;
     G_best_local_final = abs(g_best);
     G1_best = abs(g1_best);
     G2_best = abs(g2_best);
@@ -275,7 +273,7 @@ parfor k = 1:nComb
     E_abs = delta_device .* sqrt(abs(Ex_best).^2 + abs(Ey_best).^2);
     E_max = max(E_abs(:));
     
-    % 結果を保存
+    % 結果保存
     G_best_values_1D(k)             = G_best_local_final;
     G_best_abs_sums_1D(k)           = (abs(g1_best) + abs(g2_best));
     G_best_values_times_gap_1D(k)   = G_best_local_final * gap_nm;
@@ -318,16 +316,16 @@ for k = 1:nComb
     fname = sprintf('%s/final_acceleration_gradients_gap_%d_gapgap_%d_%s.txt', ...
         output_folder_name, gap_nm, gap_gap_nm, timestamp);
     fileID = fopen(fname, 'w');
-    fprintf(fileID, 'G_best (abs): %f\n',   G_best_values_final_1D(k));
-    fprintf(fileID, 'G1_best (abs): %f\n',  G1_best_1D(k));
-    fprintf(fileID, 'G2_best (abs): %f\n',  G2_best_1D(k));
+    fprintf(fileID, 'G_best (abs): %f\n', G_best_values_final_1D(k));
+    fprintf(fileID, 'G1_best (abs): %f\n', G1_best_1D(k));
+    fprintf(fileID, 'G2_best (abs): %f\n', G2_best_1D(k));
     fprintf(fileID, 'g_best (complex) = %.4f + %.4fi\n', ...
         real(g_best_complex_1D(k)), imag(g_best_complex_1D(k)));
     fprintf(fileID, 'g1_best (complex) = %.4f + %.4fi\n', ...
         real(g1_best_complex_1D(k)), imag(g1_best_complex_1D(k)));
     fprintf(fileID, 'g2_best (complex) = %.4f + %.4fi\n', ...
         real(g2_best_complex_1D(k)), imag(g2_best_complex_1D(k)));
-    fprintf(fileID, 'E_max: %f\n',          E_max_1D(k));
+    fprintf(fileID, 'E_max: %f\n', E_max_1D(k));
     fprintf(fileID, '(abs(g1)+abs(g2))*gap: %f\n', abs_g1_plus_g2_times_gap_1D(k));
     fprintf(fileID, 'abs(g1+g2)*gap: %f\n', abs_g_best_times_gap_1D(k));
     fclose(fileID);
@@ -352,30 +350,41 @@ for k = 1:nComb
     close(bestFig);
     
     %%% NEW %%% 電場大きさ画像出力（5回連結）【設計領域のみ表示】
-    %%%% CROPPED: 設計領域のインデックス計算
+    %%%% CROPPED: 設計領域のインデックス（元の構造と同じ軸番号）を計算
+    % （抜粋）電場大きさのプロット部
+    
+    % 1) くり抜き領域のインデックスを計算
     pos_src = floor(npml+grids_in_lam/4);
     spc_pts = floor(grids_in_lam/4);
     gap_pts = floor(gap_nm/1000/dlx);
-    gap_gap_pts = floor(gap_gap_nm/1000/dlx);
-    L = 0.4;
     Lpts = round(L/dlx);
     y_design_start = pos_src + spc_pts;
-    y_design_end = pos_src + spc_pts + Lpts + gap_pts + gap_gap_pts + gap_pts + Lpts;
+    y_design_end   = pos_src + spc_pts + Lpts + gap_pts + Lpts;
     
-    E_best_magnitude = E_field_magnitude_1D{k};
-    % 設計領域のみ抽出
-    E_best_magnitude_design = E_best_magnitude(:, y_design_start:y_design_end);  %% CROPPED
-    efieldFig = figure('Name','Electric Field Magnitude','Visible','off');
+    % 2) 軸ラベル用のベクトルを作成
+    x_axis = (y_design_start:y_design_end) - 1;   % 元の構造と同じ座標を反映
+    y_axis = 1:size(E_best_magnitude,1);         % 例：行方向そのまま
+    
+    % 3) くり抜き＆5回連結
+    E_best_magnitude_design = E_best_magnitude(:, y_design_start:y_design_end);
     disp_efield = [];
     for kk_ = 1:5
-        disp_efield = [disp_efield; E_best_magnitude_design];  %#ok<AGROW>
+        disp_efield = [disp_efield; E_best_magnitude_design];
     end
-    imagesc(disp_efield);
-    axis equal tight;
+    
+    % 4) imagesc の引数に x_axis, y_axis を指定し，axisを tightに
+    figure('Name','Electric Field Magnitude','Visible','off');
+    imagesc(x_axis, y_axis(1:size(disp_efield,1)), disp_efield);
     colormap jet;
     colorbar();
-    xlabel('pixel'); ylabel('pixel');
+    xlabel('pixel');
+    ylabel('pixel');
     title(sprintf('Electric Field Magnitude (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
+    
+    axis tight;           % <-- ここで axis equal をやめる
+    % axis normal;        % あるいは axis normal でもよい
+    % daspect([1 1 1]);   % もし縦横同じ物理スケールにしたいなら
+    
     efieldFigName = sprintf('%s/electric_field_gap_%d_gapgap_%d_%s.png', ...
         output_folder_name, gap_nm, gap_gap_nm, timestamp);
     saveas(efieldFig, efieldFigName);
@@ -389,12 +398,14 @@ for k = 1:nComb
     for kk_ = 1:5
         disp_ex = [disp_ex; real(Ex_best_plot_design)];  %#ok<AGROW>
     end
-    imagesc(disp_ex);
+    imagesc(x_axis, 1:size(disp_ex,1), disp_ex);  %% CROPPED: 軸指定
     axis equal tight;
     colormap jet;
     colorbar();
-    xlabel('pixel'); ylabel('pixel');
+    xlabel('pixel');
+    ylabel('pixel');
     title(sprintf('Electric Field Ex (gap = %d nm, gap\\_gap = %d nm)', gap_nm, gap_gap_nm));
+    
     exFigName = sprintf('%s/electric_field_Ex_gap_%d_gapgap_%d_%s.png', ...
         output_folder_name, gap_nm, gap_gap_nm, timestamp);
     saveas(exFig, exFigName);
@@ -405,11 +416,10 @@ end
 summary_filename = sprintf('%s/summary_all_%s.csv', output_folder_name, timestamp);
 fid_summary = fopen(summary_filename, 'w');
 fprintf(fid_summary, 'gap_nm,gap_gap_nm,G_best_final,G1_best,G2_best,real_g_best,imag_g_best,E_max,(abs(g1)+abs(g2))*gap,abs(g1+g2)*gap\n');
-
 for k = 1:nComb
-    idx     = floor((k-1)/ngapgap) + 1;
+    idx = floor((k-1)/ngapgap) + 1;
     jGapGap = mod(k-1, ngapgap) + 1;
-    gap_nm     = gap_nm_values(idx);
+    gap_nm = gap_nm_values(idx);
     gap_gap_nm = gap_gap_nm_values(jGapGap);
     
     fprintf(fid_summary, '%d,%d,%f,%f,%f,%f,%f,%f,%f,%f\n', ...
@@ -421,7 +431,7 @@ for k = 1:nComb
         imag(g_best_complex_1D(k)), ...
         E_max_1D(k), ...
         abs_g1_plus_g2_times_gap_1D(k), ...
-        abs_g_best_times_gap_1D(k) );
+        abs_g_best_times_gap_1D(k));
 end
 fclose(fid_summary);
 fprintf('Summary file saved as: %s\n', summary_filename);
