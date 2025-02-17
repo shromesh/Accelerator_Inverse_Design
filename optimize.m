@@ -16,7 +16,8 @@ starting = 0;                               % 0 -> vacuum, 1 -> random, 2 -> mid
 
 grids_in_lam = 100;                         % number of grid points in a free space wavelength
 % gap_nm_values = 40:40:1000;                 % gap size in nm variations
-gap_nm_values = 360;                 % gap size in nm variations
+% gap_nm_values = 360;                 % gap size in nm variations
+gap_nm_values = 520;                 % gap size in nm variations
 
 N = 4000;                                   % number of iterations
 parpool('local', 10);
