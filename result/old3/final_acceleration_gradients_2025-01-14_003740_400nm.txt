@@ -1,0 +1,2 @@
+Gradient for ER: 0.586240
+Gradient for ER_best: 0.850770
